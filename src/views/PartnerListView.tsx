@@ -61,7 +61,7 @@ export function PartnerListView() {
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(p => {
-        if (searchCol === 'all') return p.name.toLowerCase().includes(q) || p.biz_no.includes(q) || p.code.toLowerCase().includes(q) || p.rep.toLowerCase().includes(q);
+        if (searchCol === 'all') return p.name.toLowerCase().includes(q) || p.biz_no.includes(q) || p.code.toLowerCase().includes(q) || p.rep.toLowerCase().includes(q) || (p.email || '').toLowerCase().includes(q) || (p.tel || '').includes(q);
         const v = (p as unknown as Record<string, unknown>)[searchCol];
         return typeof v === 'string' && v.toLowerCase().includes(q);
       });
