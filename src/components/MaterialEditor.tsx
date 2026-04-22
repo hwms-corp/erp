@@ -46,7 +46,7 @@ export function MaterialEditor({ lines, onChange }: Props) {
                   <input className={`${inp} !py-1.5 !text-xs`} value={l.spec} onChange={e => update(i, 'spec', e.target.value)} placeholder="사양" />
                 </td>
                 <td className="py-2 px-1">
-                  <input type="number" min="1" className={`${inp} !py-1.5 !text-xs text-right`} value={l.qty} onChange={e => update(i, 'qty', parseInt(e.target.value) || 0)} />
+                  <input type="number" className={`${inp} !py-1.5 !text-xs text-right`} value={l.qty} onChange={e => update(i, 'qty', parseInt(e.target.value) || 0)} />
                 </td>
                 <td className="py-2 px-1">
                   <input className={`${inp} !py-1.5 !text-xs text-center`} value={l.unit} onChange={e => update(i, 'unit', e.target.value)} />
@@ -56,8 +56,12 @@ export function MaterialEditor({ lines, onChange }: Props) {
                     type="text"
                     inputMode="numeric"
                     className={`${inp} !py-1.5 !text-xs text-right`}
-                    value={l.price ? fmt(l.price) : ''}
-                    onChange={e => update(i, 'price', parseInt(e.target.value.replace(/,/g, '')) || 0)}
+                    value={l.price !== 0 ? fmt(l.price) : ''}
+                    onChange={e => {
+                      const raw = e.target.value.replace(/,/g, '');
+                      const val = parseInt(raw);
+                      update(i, 'price', isNaN(val) ? 0 : val);
+                    }}
                     placeholder="0"
                   />
                 </td>
