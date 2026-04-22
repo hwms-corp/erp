@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import type { MaterialLine } from '@/types';
 import { emptyMaterialLine, fmt } from '@/types';
@@ -7,6 +8,45 @@ const inp = 'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline
 interface Props {
   lines: MaterialLine[];
   onChange: (lines: MaterialLine[]) => void;
+}
+
+function PriceInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [raw, setRaw] = useState('');
+
+  if (editing) {
+    return (
+      <input
+        type="text"
+        inputMode="numeric"
+        className={`${inp} !py-1.5 !text-xs text-right`}
+        value={raw}
+        autoFocus
+        onChange={e => {
+          const v = e.target.value.replace(/[^-\d]/g, '');
+          setRaw(v);
+          const n = parseInt(v);
+          if (!isNaN(n)) onChange(n);
+        }}
+        onBlur={() => {
+          setEditing(false);
+          if (raw === '' || raw === '-') onChange(0);
+        }}
+        placeholder="0"
+      />
+    );
+  }
+
+  return (
+    <input
+      type="text"
+      className={`${inp} !py-1.5 !text-xs text-right`}
+      value={value !== 0 ? fmt(value) : ''}
+      readOnly
+      onFocus={() => { setRaw(value !== 0 ? String(value) : ''); setEditing(true); }}
+      placeholder="0"
+    />
+  );
 }
 
 export function MaterialEditor({ lines, onChange }: Props) {
@@ -52,18 +92,7 @@ export function MaterialEditor({ lines, onChange }: Props) {
                   <input className={`${inp} !py-1.5 !text-xs text-center`} value={l.unit} onChange={e => update(i, 'unit', e.target.value)} />
                 </td>
                 <td className="py-2 px-1">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    className={`${inp} !py-1.5 !text-xs text-right`}
-                    value={l.price !== 0 ? fmt(l.price) : ''}
-                    onChange={e => {
-                      const raw = e.target.value.replace(/,/g, '');
-                      const val = parseInt(raw);
-                      update(i, 'price', isNaN(val) ? 0 : val);
-                    }}
-                    placeholder="0"
-                  />
+                  <PriceInput value={l.price} onChange={v => update(i, 'price', v)} />
                 </td>
                 <td className="py-2 px-1 text-right text-xs font-medium text-slate-900">
                   {fmt(l.qty * l.price)}
