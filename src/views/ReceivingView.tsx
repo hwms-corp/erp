@@ -7,7 +7,7 @@ import { Modal } from '@/components/Modal';
 import { usePOs } from '@/hooks/usePOs';
 import { useDelivery } from '@/hooks/useDelivery';
 import { supabase } from '@/lib/supabase';
-import { fmt, fmtW, PO_STATUS_LABELS, monthStart, today } from '@/types';
+import { fmt, fmtW, PO_STATUS_LABELS, monthStart, monthEnd } from '@/types';
 import type { POWithDetail, POItem, POStatus } from '@/types';
 
 const inp = 'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500';
@@ -30,7 +30,7 @@ export function ReceivingView() {
   const [cards, setCards] = useState<POCardData[]>([]);
   const [tab, setTab] = useState<TabKey>('all');
   const [dateFrom, setDateFrom] = useState(monthStart);
-  const [dateTo, setDateTo] = useState(today);
+  const [dateTo, setDateTo] = useState(monthEnd);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [searchCol, setSearchCol] = useState('all');

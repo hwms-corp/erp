@@ -6,7 +6,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { usePOs } from '@/hooks/usePOs';
 import { supabase } from '@/lib/supabase';
 import { Pagination, usePagination } from '@/components/Pagination';
-import { fmtW, monthStart, today, PAYMENT_TERMS_LABELS } from '@/types';
+import { fmtW, monthStart, monthEnd, PAYMENT_TERMS_LABELS } from '@/types';
 import type { PaymentTerms } from '@/types';
 
 const inp = 'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500';
@@ -18,7 +18,7 @@ export function POSearchView() {
   const [search, setSearch] = useState('');
   const [searchCol, setSearchCol] = useState('all');
   const [dateFrom, setDateFrom] = useState(monthStart);
-  const [dateTo, setDateTo] = useState(today);
+  const [dateTo, setDateTo] = useState(monthEnd);
   const [page, setPage] = useState(1);
   const [poItemData, setPoItemData] = useState<Map<number, string>>(new Map());
   const [poItemSpecs, setPoItemSpecs] = useState<Map<number, string>>(new Map());

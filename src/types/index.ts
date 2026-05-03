@@ -241,8 +241,20 @@ export const emptyPOLine = (): POLine => ({
 export const fmt = (n: number) => new Intl.NumberFormat('ko-KR').format(n);
 export const fmtW = (n: number) => `₩${fmt(n)}`;
 
-export const today = () => new Date().toISOString().split('T')[0];
+// 로컬 타임존 기준 YYYY-MM-DD (toISOString은 UTC 기준이라 KST 새벽엔 전날이 나오는 문제가 있어 사용 금지)
+const ymd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+export const today = () => ymd(new Date());
+
 export const monthStart = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+};
+
+export const monthEnd = () => {
+  const d = new Date();
+  // 다음달 0일 = 이번달 말일
+  const last = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+  return ymd(last);
 };

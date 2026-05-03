@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { Modal } from '@/components/Modal';
 import { Pagination, usePagination } from '@/components/Pagination';
-import { PARTNER_TYPE_LABELS, BIZ_TYPE_LABELS, fmt, fmtW, monthStart, today } from '@/types';
+import { PARTNER_TYPE_LABELS, BIZ_TYPE_LABELS, fmt, fmtW } from '@/types';
 import type { Partner, PartnerType, BizType } from '@/types';
 
 const inp = 'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500';

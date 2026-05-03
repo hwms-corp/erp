@@ -6,7 +6,7 @@ import { useOrders } from '@/hooks/useOrders';
 import { useDelivery } from '@/hooks/useDelivery';
 import { supabase } from '@/lib/supabase';
 import { Pagination, usePagination } from '@/components/Pagination';
-import { fmtW, monthStart, today } from '@/types';
+import { fmtW, monthStart, monthEnd } from '@/types';
 import type { OrderWithPartner } from '@/types';
 
 const inp = 'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500';
@@ -22,7 +22,7 @@ export function ConfirmedView() {
   const [search, setSearch] = useState('');
   const [searchCol, setSearchCol] = useState('all');
   const [dateFrom, setDateFrom] = useState(monthStart);
-  const [dateTo, setDateTo] = useState(today);
+  const [dateTo, setDateTo] = useState(monthEnd);
   const [page, setPage] = useState(1);
   const searchCols = [{ k: 'all', l: '전체' }, { k: 'doc_no', l: '견적번호' }, { k: 'partner', l: '거래처' }, { k: 'name', l: '품명' }, { k: 'vessel', l: 'Vessel' }];
 

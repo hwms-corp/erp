@@ -6,7 +6,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { Pagination, usePagination } from '@/components/Pagination';
 import { useDelivery } from '@/hooks/useDelivery';
 import { supabase } from '@/lib/supabase';
-import { fmtW, monthStart, today } from '@/types';
+import { fmtW, monthStart, monthEnd } from '@/types';
 
 const inp = 'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500';
 import type { OrderWithPartner, OrderItem } from '@/types';
@@ -30,7 +30,7 @@ export function DeliveryView() {
   const [cards, setCards] = useState<DeliveryCard[]>([]);
   const [tab, setTab] = useState<TabKey>('all');
   const [dateFrom, setDateFrom] = useState(monthStart);
-  const [dateTo, setDateTo] = useState(today);
+  const [dateTo, setDateTo] = useState(monthEnd);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
   const [searchCol, setSearchCol] = useState('all');
