@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { mergeQuery } from '@/lib/listQuery';
 import { motion } from 'motion/react';
 import { Plus, Search, Calendar, CheckCircle2, Trash2, Edit } from 'lucide-react';
 import { useOrders } from '@/hooks/useOrders';
@@ -16,13 +17,26 @@ export function OrderListView() {
   const { user } = useAuth();
   const { orders, loading, fetchOrders, deleteOrder } = useOrders();
   const navigate = useNavigate();
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
-  const [searchCol, setSearchCol] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [dateFrom, setDateFrom] = useState(monthStart);
-  const [dateTo, setDateTo] = useState(monthEnd);
-  const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const listQ = useMemo(() => {
+    const pageRaw = Number.parseInt(searchParams.get('page') || '1', 10);
+    return {
+      q: searchParams.get('q') ?? '',
+      col: searchParams.get('col') ?? 'all',
+      status: searchParams.get('status') ?? 'all',
+      from: searchParams.get('from') ?? monthStart(),
+      to: searchParams.get('to') ?? monthEnd(),
+      page: Number.isFinite(pageRaw) && pageRaw >= 1 ? pageRaw : 1,
+    };
+  }, [searchParams]);
+
+  const [searchInput, setSearchInput] = useState(listQ.q);
+  useEffect(() => {
+    setSearchInput(listQ.q);
+  }, [listQ.q]);
+
+  const { q: search, col: searchCol, status: statusFilter, from: dateFrom, to: dateTo, page } = listQ;
   const [orderItemNames, setOrderItemNames] = useState<Map<number, string>>(new Map());
   const searchCols = [{ k: 'all', l: '전체' }, { k: 'doc_no', l: '견적번호' }, { k: 'partner', l: '거래처' }, { k: 'name', l: '품명' }, { k: 'vessel', l: 'Vessel' }];
 
@@ -67,7 +81,9 @@ export function OrderListView() {
   const { totalItems, totalPages, pageSize, getPage } = usePagination(filtered);
   const visible = getPage(page);
 
-  useEffect(() => { setPage(1); }, [search, searchCol, statusFilter, dateFrom, dateTo]);
+  const setListParams = (patch: Record<string, string | null | undefined>, replace = true) => {
+    setSearchParams(prev => mergeQuery(prev, patch), { replace });
+  };
 
   const handleConfirm = (o: OrderWithPartner, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -100,7 +116,7 @@ export function OrderListView() {
         ] as const).map(t => (
           <button
             key={t.k}
-            onClick={() => setStatusFilter(t.k)}
+            onClick={() => setListParams({ status: t.k, page: '1' })}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${statusFilter === t.k ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
           >
             {t.l}
@@ -111,11 +127,25 @@ export function OrderListView() {
       <div className="flex gap-3 items-center flex-wrap">
         <div className="flex items-center gap-2 text-sm">
           <Calendar className="w-4 h-4 text-slate-400" />
-          <input type="date" className={`${inp} !w-36`} value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+          <input
+            type="date"
+            className={`${inp} !w-36`}
+            value={dateFrom}
+            onChange={e => setListParams({ from: e.target.value, page: '1' })}
+          />
           <span className="text-slate-400">~</span>
-          <input type="date" className={`${inp} !w-36`} value={dateTo} onChange={e => setDateTo(e.target.value)} />
+          <input
+            type="date"
+            className={`${inp} !w-36`}
+            value={dateTo}
+            onChange={e => setListParams({ to: e.target.value, page: '1' })}
+          />
         </div>
-        <select className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none bg-white shrink-0" value={searchCol} onChange={e => setSearchCol(e.target.value)}>
+        <select
+          className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none bg-white shrink-0"
+          value={searchCol}
+          onChange={e => setListParams({ col: e.target.value, page: '1' })}
+        >
           {searchCols.map(c => <option key={c.k} value={c.k}>{c.l}</option>)}
         </select>
         <div className="flex-1 bg-white px-4 py-2.5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-3">
@@ -126,10 +156,26 @@ export function OrderListView() {
             className="flex-1 outline-none text-sm"
             value={searchInput}
             onChange={e => setSearchInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') setSearch(searchInput); }}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                const v = searchInput.trim();
+                setListParams({
+                  ...(v ? { q: v } : { q: null }),
+                  page: '1',
+                });
+              }
+            }}
           />
           {searchInput && (
-            <button onClick={() => { setSearchInput(''); setSearch(''); }} className="text-slate-400 hover:text-slate-600 text-xs">✕</button>
+            <button
+              onClick={() => {
+                setSearchInput('');
+                setListParams({ q: null, page: '1' });
+              }}
+              className="text-slate-400 hover:text-slate-600 text-xs"
+            >
+              ✕
+            </button>
           )}
         </div>
       </div>
@@ -200,7 +246,13 @@ export function OrderListView() {
             </tbody>
           </table>
         )}
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={totalItems} pageSize={pageSize} />
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          onPageChange={pg => setListParams({ page: String(pg) })}
+          totalItems={totalItems}
+          pageSize={pageSize}
+        />
       </div>
     </motion.div>
   );

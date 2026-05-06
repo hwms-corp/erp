@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { mergeQuery } from '@/lib/listQuery';
 import { motion } from 'motion/react';
 import { Search, Calendar, Plus, Trash2, Edit } from 'lucide-react';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -14,12 +15,25 @@ const inp = 'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline
 export function POSearchView() {
   const navigate = useNavigate();
   const { pos, fetchPOs, deletePO } = usePOs();
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
-  const [searchCol, setSearchCol] = useState('all');
-  const [dateFrom, setDateFrom] = useState(monthStart);
-  const [dateTo, setDateTo] = useState(monthEnd);
-  const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const listQ = useMemo(() => {
+    const pageRaw = Number.parseInt(searchParams.get('page') || '1', 10);
+    return {
+      q: searchParams.get('q') ?? '',
+      col: searchParams.get('col') ?? 'all',
+      from: searchParams.get('from') ?? monthStart(),
+      to: searchParams.get('to') ?? monthEnd(),
+      page: Number.isFinite(pageRaw) && pageRaw >= 1 ? pageRaw : 1,
+    };
+  }, [searchParams]);
+
+  const [searchInput, setSearchInput] = useState(listQ.q);
+  useEffect(() => {
+    setSearchInput(listQ.q);
+  }, [listQ.q]);
+
+  const { q: search, col: searchCol, from: dateFrom, to: dateTo, page } = listQ;
   const [poItemData, setPoItemData] = useState<Map<number, string>>(new Map());
   const [poItemSpecs, setPoItemSpecs] = useState<Map<number, string>>(new Map());
   const searchCols = [
@@ -75,7 +89,9 @@ export function POSearchView() {
   const { totalItems, totalPages, pageSize, getPage } = usePagination(filtered);
   const paged = getPage(page);
 
-  useEffect(() => { setPage(1); }, [search, searchCol, dateFrom, dateTo]);
+  const setListParams = (patch: Record<string, string | null | undefined>, replace = true) => {
+    setSearchParams(prev => mergeQuery(prev, patch), { replace });
+  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -92,11 +108,25 @@ export function POSearchView() {
       <div className="flex gap-3 items-center flex-wrap">
         <div className="flex items-center gap-2 text-sm">
           <Calendar className="w-4 h-4 text-slate-400" />
-          <input type="date" className={`${inp} !w-36`} value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+          <input
+            type="date"
+            className={`${inp} !w-36`}
+            value={dateFrom}
+            onChange={e => setListParams({ from: e.target.value, page: '1' })}
+          />
           <span className="text-slate-400">~</span>
-          <input type="date" className={`${inp} !w-36`} value={dateTo} onChange={e => setDateTo(e.target.value)} />
+          <input
+            type="date"
+            className={`${inp} !w-36`}
+            value={dateTo}
+            onChange={e => setListParams({ to: e.target.value, page: '1' })}
+          />
         </div>
-        <select className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none bg-white shrink-0" value={searchCol} onChange={e => setSearchCol(e.target.value)}>
+        <select
+          className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none bg-white shrink-0"
+          value={searchCol}
+          onChange={e => setListParams({ col: e.target.value, page: '1' })}
+        >
           {searchCols.map(c => <option key={c.k} value={c.k}>{c.l}</option>)}
         </select>
         <div className="flex-1 bg-white px-4 py-2.5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-3">
@@ -107,10 +137,26 @@ export function POSearchView() {
             className="flex-1 outline-none text-sm"
             value={searchInput}
             onChange={e => setSearchInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') setSearch(searchInput); }}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                const v = searchInput.trim();
+                setListParams({
+                  ...(v ? { q: v } : { q: null }),
+                  page: '1',
+                });
+              }
+            }}
           />
           {searchInput && (
-            <button onClick={() => { setSearchInput(''); setSearch(''); }} className="text-slate-400 hover:text-slate-600 text-xs">✕</button>
+            <button
+              onClick={() => {
+                setSearchInput('');
+                setListParams({ q: null, page: '1' });
+              }}
+              className="text-slate-400 hover:text-slate-600 text-xs"
+            >
+              ✕
+            </button>
           )}
         </div>
       </div>
@@ -131,29 +177,29 @@ export function POSearchView() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {paged.map(p => (
-              <tr key={p.id} className="hover:bg-slate-50">
-                <td className="px-4 py-3 text-slate-600">{p.po_date}</td>
+            {paged.map(po => (
+              <tr key={po.id} className="hover:bg-slate-50">
+                <td className="px-4 py-3 text-slate-600">{po.po_date}</td>
                 <td
                   className="px-4 py-3 font-medium text-indigo-600 cursor-pointer hover:underline"
-                  onClick={() => navigate(`/pos/${p.id}/preview`)}
+                  onClick={() => navigate(`/pos/${po.id}/preview`)}
                 >
-                  {p.doc_no}
+                  {po.doc_no}
                 </td>
-                <td className="px-4 py-3 font-medium text-slate-900">{p.partner_name}</td>
-                <td className="px-4 py-3 text-right font-medium">{fmtW(p.po_amount)}</td>
-                <td className="px-4 py-3 text-right text-slate-600">{fmtW(p.received_amount)}</td>
+                <td className="px-4 py-3 font-medium text-slate-900">{po.partner_name}</td>
+                <td className="px-4 py-3 text-right font-medium">{fmtW(po.po_amount)}</td>
+                <td className="px-4 py-3 text-right text-slate-600">{fmtW(po.received_amount)}</td>
                 <td className="px-4 py-3 text-center text-xs">
-                  {PAYMENT_TERMS_LABELS[p.payment_terms as PaymentTerms] ?? p.payment_terms}
+                  {PAYMENT_TERMS_LABELS[po.payment_terms as PaymentTerms] ?? po.payment_terms}
                 </td>
-                <td className="px-4 py-3 text-center text-slate-600">{p.required_date ?? '-'}</td>
+                <td className="px-4 py-3 text-center text-slate-600">{po.required_date ?? '-'}</td>
                 <td className="px-4 py-3 text-center">
-                  <StatusBadge status={p.status} />
+                  <StatusBadge status={po.status} />
                 </td>
                 <td className="px-4 py-3 text-center">
                   <div className="flex items-center justify-center gap-1">
                     <button
-                      onClick={() => navigate(`/pos/${p.id}/edit`)}
+                      onClick={() => navigate(`/pos/${po.id}/edit`)}
                       className="p-1.5 text-slate-400 hover:text-amber-600 transition-colors"
                       title="수정"
                     >
@@ -161,8 +207,8 @@ export function POSearchView() {
                     </button>
                     <button
                       onClick={async () => {
-                        if (!confirm(`${p.doc_no}을(를) 삭제하시겠습니까?\n삭제 후 복구할 수 없습니다.`)) return;
-                        const { error } = await deletePO(p.id);
+                        if (!confirm(`${po.doc_no}을(를) 삭제하시겠습니까?\n삭제 후 복구할 수 없습니다.`)) return;
+                        const { error } = await deletePO(po.id);
                         if (error) alert('삭제 실패: ' + (error.message || '오류가 발생했습니다.'));
                       }}
                       className="p-1.5 text-slate-400 hover:text-red-600 transition-colors"
@@ -179,7 +225,13 @@ export function POSearchView() {
             )}
           </tbody>
         </table>
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={totalItems} pageSize={pageSize} />
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          onPageChange={pg => setListParams({ page: String(pg) })}
+          totalItems={totalItems}
+          pageSize={pageSize}
+        />
       </div>
     </motion.div>
   );

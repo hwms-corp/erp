@@ -7,6 +7,13 @@ import { PARTNER_TYPE_LABELS, BIZ_TYPE_LABELS, fmt, fmtW } from '@/types';
 import type { Partner, PartnerDeliverySummary, OrderWithPartner } from '@/types';
 import { StatusBadge } from '@/components/StatusBadge';
 
+/** DB/뷰가 월 단위임에도 yyyy-mm-dd로 올 때 표시만 yyyy-mm */
+function formatMonthYm(month: string): string {
+  const t = month.trim();
+  if (/^\d{4}-\d{2}/.test(t)) return t.slice(0, 7);
+  return month;
+}
+
 export function PartnerDetailView() {
   const { code } = useParams<{ code: string }>();
   const navigate = useNavigate();
@@ -193,7 +200,7 @@ export function PartnerDetailView() {
                   <tbody className="divide-y divide-slate-100">
                     {summary.map(r => (
                       <tr key={r.month} className="hover:bg-slate-50">
-                        <td className="px-4 py-3 font-medium text-slate-900">{r.month}</td>
+                        <td className="px-4 py-3 font-medium text-slate-900">{formatMonthYm(r.month)}</td>
                         <td className="px-4 py-3 text-center text-slate-600">{r.delivery_count}</td>
                         <td className="px-4 py-3 text-right text-slate-600">{fmtW(r.supply_amount)}</td>
                         <td className="px-4 py-3 text-right text-slate-600">{fmtW(r.tax_amount)}</td>

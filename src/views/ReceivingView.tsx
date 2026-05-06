@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { mergeQuery } from '@/lib/listQuery';
 import { motion } from 'motion/react';
 import { Package, CheckCircle2, RotateCcw, Search, Calendar } from 'lucide-react';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -24,19 +26,42 @@ interface POCardData extends POWithDetail {
   items: POItem[];
 }
 
+const TAB_KEYS = new Set<TabKey>(['all', 'ordered', 'partial_received', 'received']);
+
 export function ReceivingView() {
   const { fetchPOs, fetchPOItems, updateReceivedQty } = usePOs();
   const { revertDelivery } = useDelivery();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [cards, setCards] = useState<POCardData[]>([]);
-  const [tab, setTab] = useState<TabKey>('all');
-  const [dateFrom, setDateFrom] = useState(monthStart);
-  const [dateTo, setDateTo] = useState(monthEnd);
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
-  const [searchCol, setSearchCol] = useState('all');
+
+  const listQ = useMemo(() => {
+    const pageRaw = Number.parseInt(searchParams.get('page') || '1', 10);
+    const tabRaw = (searchParams.get('tab') || 'all') as TabKey;
+    return {
+      tab: TAB_KEYS.has(tabRaw) ? tabRaw : 'all',
+      q: searchParams.get('q') ?? '',
+      col: searchParams.get('col') ?? 'all',
+      from: searchParams.get('from') ?? monthStart(),
+      to: searchParams.get('to') ?? monthEnd(),
+      page: Number.isFinite(pageRaw) && pageRaw >= 1 ? pageRaw : 1,
+    };
+  }, [searchParams]);
+
+  const [searchInput, setSearchInput] = useState(listQ.q);
+  useEffect(() => {
+    setSearchInput(listQ.q);
+  }, [listQ.q]);
+
+  const { tab, q: search, col: searchCol, from: dateFrom, to: dateTo, page } = listQ;
   const [partialModal, setPartialModal] = useState<{ poId: number; item: POItem } | null>(null);
   const [partialQty, setPartialQty] = useState(0);
-  const searchCols = [{ k: 'all', l: '전체' }, { k: 'doc_no', l: '발주번호' }, { k: 'partner', l: '거래처' }, { k: 'name', l: '품명' }];
+  const searchCols = [
+    { k: 'all', l: '전체' },
+    { k: 'doc_no', l: '발주번호' },
+    { k: 'partner', l: '거래처' },
+    { k: 'name', l: '품명' },
+    { k: 'spec', l: '사양' },
+  ];
 
   const loadAll = useCallback(async () => {
     const { data: poList } = await fetchPOs();
@@ -61,21 +86,31 @@ export function ReceivingView() {
       const q = search.toLowerCase();
       list = list.filter(c => {
         const itemNames = c.items.map(i => i.name).join(' ').toLowerCase();
-        if (searchCol === 'all') return c.doc_no.toLowerCase().includes(q) || c.partner_name.toLowerCase().includes(q) || itemNames.includes(q);
+        const itemSpecs = c.items.map(i => (i.spec || '').trim()).join(' ').toLowerCase();
+        if (searchCol === 'all') {
+          return (
+            c.doc_no.toLowerCase().includes(q) ||
+            c.partner_name.toLowerCase().includes(q) ||
+            itemNames.includes(q) ||
+            itemSpecs.includes(q)
+          );
+        }
         if (searchCol === 'doc_no') return c.doc_no.toLowerCase().includes(q);
         if (searchCol === 'partner') return c.partner_name.toLowerCase().includes(q);
         if (searchCol === 'name') return itemNames.includes(q);
+        if (searchCol === 'spec') return itemSpecs.includes(q);
         return false;
       });
     }
     return list;
   }, [cards, tab, dateFrom, dateTo, search, searchCol]);
 
-  const [page, setPage] = useState(1);
   const { totalItems, totalPages, pageSize, getPage } = usePagination(filtered, 10);
   const pagedFiltered = getPage(page);
 
-  useEffect(() => { setPage(1); }, [tab, dateFrom, dateTo, search, searchCol]);
+  const setListParams = useCallback((patch: Record<string, string | null | undefined>, replace = true) => {
+    setSearchParams(prev => mergeQuery(prev, patch), { replace });
+  }, [setSearchParams]);
 
   const handleFullReceive = async (po: POCardData) => {
     for (const item of po.items) {
@@ -139,7 +174,7 @@ export function ReceivingView() {
         {tabs.map(t => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key)}
+            onClick={() => setListParams({ tab: t.key, page: '1' })}
             className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
               tab === t.key ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
             }`}
@@ -152,11 +187,25 @@ export function ReceivingView() {
       <div className="flex gap-3 items-center flex-wrap">
         <div className="flex items-center gap-2 text-sm">
           <Calendar className="w-4 h-4 text-slate-400" />
-          <input type="date" className={`${inp} !w-36`} value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+          <input
+            type="date"
+            className={`${inp} !w-36`}
+            value={dateFrom}
+            onChange={e => setListParams({ from: e.target.value, page: '1' })}
+          />
           <span className="text-slate-400">~</span>
-          <input type="date" className={`${inp} !w-36`} value={dateTo} onChange={e => setDateTo(e.target.value)} />
+          <input
+            type="date"
+            className={`${inp} !w-36`}
+            value={dateTo}
+            onChange={e => setListParams({ to: e.target.value, page: '1' })}
+          />
         </div>
-        <select className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none bg-white shrink-0" value={searchCol} onChange={e => setSearchCol(e.target.value)}>
+        <select
+          className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none bg-white shrink-0"
+          value={searchCol}
+          onChange={e => setListParams({ col: e.target.value, page: '1' })}
+        >
           {searchCols.map(c => <option key={c.k} value={c.k}>{c.l}</option>)}
         </select>
         <div className="flex-1 bg-white px-4 py-2.5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-3">
@@ -167,10 +216,26 @@ export function ReceivingView() {
             className="flex-1 outline-none text-sm"
             value={searchInput}
             onChange={e => setSearchInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') setSearch(searchInput); }}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                const v = searchInput.trim();
+                setListParams({
+                  ...(v ? { q: v } : { q: null }),
+                  page: '1',
+                });
+              }
+            }}
           />
           {searchInput && (
-            <button onClick={() => { setSearchInput(''); setSearch(''); }} className="text-slate-400 hover:text-slate-600 text-xs">✕</button>
+            <button
+              onClick={() => {
+                setSearchInput('');
+                setListParams({ q: null, page: '1' });
+              }}
+              className="text-slate-400 hover:text-slate-600 text-xs"
+            >
+              ✕
+            </button>
           )}
         </div>
       </div>
@@ -196,35 +261,40 @@ export function ReceivingView() {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full text-sm text-left min-w-[700px]">
+                <table className="w-full text-sm text-left min-w-[900px]">
                   <thead className="bg-slate-50 text-slate-500">
                     <tr>
-                      <th className="px-4 py-2">품명</th>
-                      <th className="px-4 py-2">사양</th>
-                      <th className="px-4 py-2 text-right">발주수량</th>
-                      <th className="px-4 py-2 text-right">입고수량</th>
-                      <th className="px-4 py-2 text-right">잔량</th>
-                      <th className="px-4 py-2 text-right">처리</th>
+                      <th className="px-3 py-2.5 text-left min-w-[7rem]">품명</th>
+                      <th className="px-3 py-2.5 text-left min-w-[6rem]">사양</th>
+                      <th className="px-3 py-2.5 pr-2 text-right whitespace-nowrap tabular-nums w-[4.75rem]">발주수량</th>
+                      <th className="px-3 py-2.5 pr-2 text-right whitespace-nowrap tabular-nums w-[4.75rem]">입고수량</th>
+                      <th className="px-3 py-2.5 pr-2 text-right whitespace-nowrap tabular-nums w-[4rem]">잔량</th>
+                      <th className="px-2 py-2.5 pl-2 text-right whitespace-nowrap tabular-nums w-[6rem]">단가</th>
+                      <th className="px-2 py-2.5 pl-1 text-right whitespace-nowrap tabular-nums w-[6.75rem]">금액</th>
+                      <th className="px-2 py-2.5 text-right whitespace-nowrap min-w-[6rem] w-[6.25rem]">처리</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {po.items.map(item => {
                       const remaining = item.qty - item.received_qty;
+                      const lineAmount = item.qty * item.price;
                       return (
                         <tr key={item.id}>
-                          <td className="px-4 py-2.5 font-medium text-slate-900">{item.name}</td>
-                          <td className="px-4 py-2.5 text-slate-600">{item.spec}</td>
-                          <td className="px-4 py-2.5 text-right">{fmt(item.qty)}</td>
-                          <td className="px-4 py-2.5 text-right text-indigo-600 font-medium">{fmt(item.received_qty)}</td>
-                          <td className={`px-4 py-2.5 text-right font-medium ${remaining > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>
+                          <td className="px-3 py-2.5 font-medium text-slate-900 break-words align-top">{item.name}</td>
+                          <td className="px-3 py-2.5 text-slate-600 break-words align-top">{item.spec}</td>
+                          <td className="px-3 py-2.5 pr-2 text-right tabular-nums whitespace-nowrap align-top">{fmt(item.qty)}</td>
+                          <td className="px-3 py-2.5 pr-2 text-right text-indigo-600 font-medium tabular-nums whitespace-nowrap align-top">{fmt(item.received_qty)}</td>
+                          <td className={`px-3 py-2.5 pr-2 text-right font-medium tabular-nums whitespace-nowrap align-top ${remaining > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>
                             {fmt(remaining)}
                           </td>
-                          <td className="px-4 py-2.5 text-right">
-                            <div className="flex items-center justify-end gap-1">
+                          <td className="px-2 py-2.5 pl-2 text-right tabular-nums whitespace-nowrap text-slate-700 align-top">{fmtW(item.price)}</td>
+                          <td className="px-2 py-2.5 pl-1 text-right tabular-nums whitespace-nowrap font-medium text-slate-900 align-top">{fmtW(lineAmount)}</td>
+                          <td className="px-2 py-2.5 text-right align-top">
+                            <div className="flex items-center justify-end gap-1 flex-wrap">
                               {remaining > 0 && (
                                 <button
                                   onClick={() => { setPartialModal({ poId: po.id, item }); setPartialQty(remaining); }}
-                                  className="px-2.5 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100"
+                                  className="px-2 py-1 bg-blue-50 text-blue-600 rounded-lg text-xs font-medium hover:bg-blue-100"
                                 >
                                   부분입고
                                 </button>
@@ -232,7 +302,7 @@ export function ReceivingView() {
                               {item.received_qty > 0 && (
                                 <button
                                   onClick={() => handleResetItem(item)}
-                                  className="px-2.5 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100"
+                                  className="px-2 py-1 bg-red-50 text-red-600 rounded-lg text-xs font-medium hover:bg-red-100"
                                 >
                                   입고취소
                                 </button>
@@ -278,7 +348,13 @@ export function ReceivingView() {
             해당 조건의 발주 건이 없습니다
           </div>
         )}
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={totalItems} pageSize={pageSize} />
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          onPageChange={pg => setListParams({ page: String(pg) })}
+          totalItems={totalItems}
+          pageSize={pageSize}
+        />
       </div>
 
       {partialModal && (

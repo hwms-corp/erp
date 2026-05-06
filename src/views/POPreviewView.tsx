@@ -73,7 +73,7 @@ export function POPreviewView() {
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/pos')} className="p-2 hover:bg-slate-100 rounded-lg">
+          <button onClick={() => navigate(-1)} className="p-2 hover:bg-slate-100 rounded-lg">
             <ArrowLeft className="w-5 h-5 text-slate-600" />
           </button>
           <h2 className="text-2xl font-bold text-slate-900">발주서 미리보기</h2>

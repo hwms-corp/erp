@@ -199,7 +199,22 @@ export function OrderPreviewView() {
                     <tr><td style={{ padding: '5px 10px', color: '#64748b', width: 80 }}>공급처명</td><td style={{ padding: '5px 10px', textAlign: 'right', fontWeight: 500 }}>{company.name}</td></tr>
                     <tr><td style={{ padding: '5px 10px', color: '#64748b' }}>담당자</td><td style={{ padding: '5px 10px', textAlign: 'right' }}>{creatorName || company.rep}</td></tr>
                     <tr><td style={{ padding: '5px 10px', color: '#64748b' }}>주소</td><td style={{ padding: '5px 10px', textAlign: 'right' }}>{company.addr || '-'}</td></tr>
-                    <tr><td style={{ padding: '5px 10px', color: '#64748b' }}>전화번호 / 팩스번호</td><td style={{ padding: '5px 10px', textAlign: 'right' }}>{[company.tel, company.fax].filter(Boolean).join(' / ') || '-'}</td></tr>
+                    <tr>
+                      <td style={{ padding: '5px 10px', color: '#64748b', verticalAlign: 'top' }}>
+                        전화번호
+                        <br />
+                        팩스번호
+                      </td>
+                      <td style={{ padding: '5px 10px', textAlign: 'right', verticalAlign: 'top' }}>
+                        {(() => {
+                          const lines = [company.tel, company.fax].filter(Boolean);
+                          if (lines.length === 0) return '-';
+                          return lines.map((v, i) => (
+                            <span key={i} style={{ display: 'block' }}>{v}</span>
+                          ));
+                        })()}
+                      </td>
+                    </tr>
                   </>
                 )}
               </tbody>

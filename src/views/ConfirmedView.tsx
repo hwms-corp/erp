@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { mergeQuery } from '@/lib/listQuery';
 import { motion } from 'motion/react';
 import { Search, Calendar, Trash2, RotateCcw, PackageCheck } from 'lucide-react';
 import { useOrders } from '@/hooks/useOrders';
@@ -13,17 +14,34 @@ const inp = 'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline
 
 export function ConfirmedView() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { revertToDraft, deleteOrder } = useOrders();
   const { completeDelivery } = useDelivery();
   const [orders, setOrders] = useState<OrderWithPartner[]>([]);
   const [poOrderIds, setPoOrderIds] = useState<Set<number>>(new Set());
   const [orderItemNames, setOrderItemNames] = useState<Map<number, string>>(new Map());
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
-  const [searchCol, setSearchCol] = useState('all');
-  const [dateFrom, setDateFrom] = useState(monthStart);
-  const [dateTo, setDateTo] = useState(monthEnd);
-  const [page, setPage] = useState(1);
+
+  const listQ = useMemo(() => {
+    const pageRaw = Number.parseInt(searchParams.get('page') || '1', 10);
+    return {
+      q: searchParams.get('q') ?? '',
+      col: searchParams.get('col') ?? 'all',
+      from: searchParams.get('from') ?? monthStart(),
+      to: searchParams.get('to') ?? monthEnd(),
+      page: Number.isFinite(pageRaw) && pageRaw >= 1 ? pageRaw : 1,
+    };
+  }, [searchParams]);
+
+  const [searchInput, setSearchInput] = useState(listQ.q);
+  useEffect(() => {
+    setSearchInput(listQ.q);
+  }, [listQ.q]);
+
+  const { q: search, col: searchCol, from: dateFrom, to: dateTo, page } = listQ;
+
+  const setListParams = useCallback((patch: Record<string, string | null | undefined>, replace = true) => {
+    setSearchParams(prev => mergeQuery(prev, patch), { replace });
+  }, [setSearchParams]);
   const searchCols = [{ k: 'all', l: '전체' }, { k: 'doc_no', l: '견적번호' }, { k: 'partner', l: '거래처' }, { k: 'name', l: '품명' }, { k: 'vessel', l: 'Vessel' }];
 
   const fetchData = useCallback(async () => {
@@ -81,8 +99,6 @@ export function ConfirmedView() {
   const { totalItems, totalPages, pageSize, getPage } = usePagination(confirmed);
   const pagedConfirmed = getPage(page);
 
-  useEffect(() => { setPage(1); }, [search, searchCol, dateFrom, dateTo]);
-
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <h2 className="text-2xl font-bold text-slate-900">수주 관리</h2>
@@ -90,11 +106,25 @@ export function ConfirmedView() {
       <div className="flex gap-3 items-center flex-wrap">
         <div className="flex items-center gap-2 text-sm">
           <Calendar className="w-4 h-4 text-slate-400" />
-          <input type="date" className={`${inp} !w-36`} value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+          <input
+            type="date"
+            className={`${inp} !w-36`}
+            value={dateFrom}
+            onChange={e => setListParams({ from: e.target.value, page: '1' })}
+          />
           <span className="text-slate-400">~</span>
-          <input type="date" className={`${inp} !w-36`} value={dateTo} onChange={e => setDateTo(e.target.value)} />
+          <input
+            type="date"
+            className={`${inp} !w-36`}
+            value={dateTo}
+            onChange={e => setListParams({ to: e.target.value, page: '1' })}
+          />
         </div>
-        <select className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none bg-white shrink-0" value={searchCol} onChange={e => setSearchCol(e.target.value)}>
+        <select
+          className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none bg-white shrink-0"
+          value={searchCol}
+          onChange={e => setListParams({ col: e.target.value, page: '1' })}
+        >
           {searchCols.map(c => <option key={c.k} value={c.k}>{c.l}</option>)}
         </select>
         <div className="flex-1 bg-white px-4 py-2.5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-3">
@@ -105,10 +135,26 @@ export function ConfirmedView() {
             className="flex-1 outline-none text-sm"
             value={searchInput}
             onChange={e => setSearchInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') setSearch(searchInput); }}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                const v = searchInput.trim();
+                setListParams({
+                  ...(v ? { q: v } : { q: null }),
+                  page: '1',
+                });
+              }
+            }}
           />
           {searchInput && (
-            <button onClick={() => { setSearchInput(''); setSearch(''); }} className="text-slate-400 hover:text-slate-600 text-xs">✕</button>
+            <button
+              onClick={() => {
+                setSearchInput('');
+                setListParams({ q: null, page: '1' });
+              }}
+              className="text-slate-400 hover:text-slate-600 text-xs"
+            >
+              ✕
+            </button>
           )}
         </div>
       </div>
@@ -186,7 +232,13 @@ export function ConfirmedView() {
             )}
           </tbody>
         </table>
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={totalItems} pageSize={pageSize} />
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          onPageChange={pg => setListParams({ page: String(pg) })}
+          totalItems={totalItems}
+          pageSize={pageSize}
+        />
       </div>
     </motion.div>
   );

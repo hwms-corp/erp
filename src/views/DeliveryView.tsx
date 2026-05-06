@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { mergeQuery } from '@/lib/listQuery';
 import { motion } from 'motion/react';
 import { Truck, CheckCircle2, FileText, Search, Calendar, RotateCcw } from 'lucide-react';
 import { StatusBadge } from '@/components/StatusBadge';
@@ -18,6 +19,8 @@ const tabs: { key: TabKey; label: string }[] = [
   { key: 'completed', label: '납품완료' },
 ];
 
+const DELIVERY_TAB_KEYS = new Set<TabKey>(['all', 'pending', 'completed']);
+
 interface DeliveryCard extends OrderWithPartner {
   items: OrderItem[];
   allPOsReceived: boolean;
@@ -26,16 +29,40 @@ interface DeliveryCard extends OrderWithPartner {
 
 export function DeliveryView() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { completeDelivery, revertDelivery } = useDelivery();
   const [cards, setCards] = useState<DeliveryCard[]>([]);
-  const [tab, setTab] = useState<TabKey>('all');
-  const [dateFrom, setDateFrom] = useState(monthStart);
-  const [dateTo, setDateTo] = useState(monthEnd);
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
-  const [searchCol, setSearchCol] = useState('all');
-  const [page, setPage] = useState(1);
-  const searchCols = [{ k: 'all', l: '전체' }, { k: 'doc_no', l: '견적번호' }, { k: 'partner', l: '거래처' }];
+
+  const listQ = useMemo(() => {
+    const pageRaw = Number.parseInt(searchParams.get('page') || '1', 10);
+    const tabRaw = (searchParams.get('tab') || 'all') as TabKey;
+    return {
+      tab: DELIVERY_TAB_KEYS.has(tabRaw) ? tabRaw : 'all',
+      q: searchParams.get('q') ?? '',
+      col: searchParams.get('col') ?? 'all',
+      from: searchParams.get('from') ?? monthStart(),
+      to: searchParams.get('to') ?? monthEnd(),
+      page: Number.isFinite(pageRaw) && pageRaw >= 1 ? pageRaw : 1,
+    };
+  }, [searchParams]);
+
+  const [searchInput, setSearchInput] = useState(listQ.q);
+  useEffect(() => {
+    setSearchInput(listQ.q);
+  }, [listQ.q]);
+
+  const { tab, q: search, col: searchCol, from: dateFrom, to: dateTo, page } = listQ;
+
+  const setListParams = useCallback((patch: Record<string, string | null | undefined>, replace = true) => {
+    setSearchParams(prev => mergeQuery(prev, patch), { replace });
+  }, [setSearchParams]);
+  const searchCols = [
+    { k: 'all', l: '전체' },
+    { k: 'doc_no', l: '견적번호' },
+    { k: 'partner', l: '거래처' },
+    { k: 'name', l: '품명' },
+    { k: 'spec', l: '사양' },
+  ];
 
   const loadAll = useCallback(async () => {
     const { data: orders } = await supabase
@@ -85,9 +112,20 @@ export function DeliveryView() {
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(c => {
-        if (searchCol === 'all') return c.doc_no.toLowerCase().includes(q) || c.partner_name.toLowerCase().includes(q);
+        const itemNames = c.items.map(i => i.name).join(' ').toLowerCase();
+        const itemSpecs = c.items.map(i => (i.spec || '').trim()).join(' ').toLowerCase();
+        if (searchCol === 'all') {
+          return (
+            c.doc_no.toLowerCase().includes(q) ||
+            c.partner_name.toLowerCase().includes(q) ||
+            itemNames.includes(q) ||
+            itemSpecs.includes(q)
+          );
+        }
         if (searchCol === 'doc_no') return c.doc_no.toLowerCase().includes(q);
         if (searchCol === 'partner') return c.partner_name.toLowerCase().includes(q);
+        if (searchCol === 'name') return itemNames.includes(q);
+        if (searchCol === 'spec') return itemSpecs.includes(q);
         return false;
       });
     }
@@ -96,8 +134,6 @@ export function DeliveryView() {
 
   const { totalItems, totalPages, pageSize, getPage } = usePagination(filtered, 10);
   const paged = getPage(page);
-
-  useEffect(() => { setPage(1); }, [tab, dateFrom, dateTo, search, searchCol]);
 
   const handleComplete = async (orderId: number) => {
     if (!confirm('납품완료 처리하시겠습니까?')) return;
@@ -117,7 +153,7 @@ export function DeliveryView() {
         {tabs.map(t => (
           <button
             key={t.key}
-            onClick={() => setTab(t.key)}
+            onClick={() => setListParams({ tab: t.key, page: '1' })}
             className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
               tab === t.key ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
             }`}
@@ -130,25 +166,55 @@ export function DeliveryView() {
       <div className="flex gap-3 items-center flex-wrap">
         <div className="flex items-center gap-2 text-sm">
           <Calendar className="w-4 h-4 text-slate-400" />
-          <input type="date" className={`${inp} !w-36`} value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+          <input
+            type="date"
+            className={`${inp} !w-36`}
+            value={dateFrom}
+            onChange={e => setListParams({ from: e.target.value, page: '1' })}
+          />
           <span className="text-slate-400">~</span>
-          <input type="date" className={`${inp} !w-36`} value={dateTo} onChange={e => setDateTo(e.target.value)} />
+          <input
+            type="date"
+            className={`${inp} !w-36`}
+            value={dateTo}
+            onChange={e => setListParams({ to: e.target.value, page: '1' })}
+          />
         </div>
-        <select className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none bg-white shrink-0" value={searchCol} onChange={e => setSearchCol(e.target.value)}>
+        <select
+          className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none bg-white shrink-0"
+          value={searchCol}
+          onChange={e => setListParams({ col: e.target.value, page: '1' })}
+        >
           {searchCols.map(c => <option key={c.k} value={c.k}>{c.l}</option>)}
         </select>
         <div className="flex-1 bg-white px-4 py-2.5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-3">
           <Search className="w-5 h-5 text-slate-400 shrink-0" />
           <input
             type="text"
-            placeholder="견적번호, 거래처명 검색 (Enter)"
+            placeholder="견적번호·거래처·품명·사양 검색 (Enter)"
             className="flex-1 outline-none text-sm"
             value={searchInput}
             onChange={e => setSearchInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') setSearch(searchInput); }}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                const v = searchInput.trim();
+                setListParams({
+                  ...(v ? { q: v } : { q: null }),
+                  page: '1',
+                });
+              }
+            }}
           />
           {searchInput && (
-            <button onClick={() => { setSearchInput(''); setSearch(''); }} className="text-slate-400 hover:text-slate-600 text-xs">✕</button>
+            <button
+              onClick={() => {
+                setSearchInput('');
+                setListParams({ q: null, page: '1' });
+              }}
+              className="text-slate-400 hover:text-slate-600 text-xs"
+            >
+              ✕
+            </button>
           )}
         </div>
       </div>
@@ -252,7 +318,13 @@ export function DeliveryView() {
             해당 조건의 납품 건이 없습니다
           </div>
         )}
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={totalItems} pageSize={pageSize} />
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          onPageChange={pg => setListParams({ page: String(pg) })}
+          totalItems={totalItems}
+          pageSize={pageSize}
+        />
       </div>
     </motion.div>
   );

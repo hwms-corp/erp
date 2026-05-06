@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { mergeQuery } from '@/lib/listQuery';
 import { motion } from 'motion/react';
 import { Plus, Search, Edit3, Calendar, Trash2 } from 'lucide-react';
 import { usePartners } from '@/hooks/usePartners';
@@ -16,17 +17,31 @@ export function PartnerListView() {
   const { user } = useAuth();
   const { partners, fetchPartners, createPartner, updatePartner, deletePartner } = usePartners();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const listQ = useMemo(() => {
+    const pageRaw = Number.parseInt(searchParams.get('page') || '1', 10);
+    return {
+      q: searchParams.get('q') ?? '',
+      col: searchParams.get('col') ?? 'all',
+      filter: searchParams.get('filter') ?? 'all',
+      page: Number.isFinite(pageRaw) && pageRaw >= 1 ? pageRaw : 1,
+      delivFilter: searchParams.get('deliv') === '1',
+      delivDateFrom: searchParams.get('dvf') ?? '',
+      delivDateTo: searchParams.get('dvt') ?? '',
+    };
+  }, [searchParams]);
+
+  const [searchInput, setSearchInput] = useState(listQ.q);
+  useEffect(() => {
+    setSearchInput(listQ.q);
+  }, [listQ.q]);
+
+  const { q: search, col: searchCol, filter, page, delivFilter, delivDateFrom, delivDateTo } = listQ;
+
   const [modal, setModal] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ code: '', name: '', type: 'sales' as PartnerType, biz_no: '', biz_type: 'corporate' as BizType, rep: '', tel: '', fax: '', addr: '', bank: '', account: '', email: '' });
-  const [searchInput, setSearchInput] = useState('');
-  const [search, setSearch] = useState('');
-  const [searchCol, setSearchCol] = useState('all');
-  const [filter, setFilter] = useState('all');
-  const [page, setPage] = useState(1);
-  const [delivDateFrom, setDelivDateFrom] = useState('');
-  const [delivDateTo, setDelivDateTo] = useState('');
-  const [delivFilter, setDelivFilter] = useState(false);
   const [delivPartnerIds, setDelivPartnerIds] = useState<Set<number> | null>(null);
 
   useEffect(() => { fetchPartners(); }, [fetchPartners]);
@@ -72,7 +87,9 @@ export function PartnerListView() {
   const { totalItems, totalPages, pageSize, getPage } = usePagination(visible);
   const pagedVisible = getPage(page);
 
-  useEffect(() => { setPage(1); }, [search, searchCol, filter, delivPartnerIds]);
+  const setListParams = (patch: Record<string, string | null | undefined>, replace = true) => {
+    setSearchParams(prev => mergeQuery(prev, patch), { replace });
+  };
 
   const openNew = () => {
     setEditId(null);
@@ -113,13 +130,21 @@ export function PartnerListView() {
       </div>
       <div className="flex gap-1 border-b border-slate-200 pb-0">
         {tabs.map(t => (
-          <button key={t} onClick={() => setFilter(t)} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${filter === t ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+          <button
+            key={t}
+            onClick={() => setListParams({ filter: t, page: '1' })}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${filter === t ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+          >
             {tabLabels[t]}
           </button>
         ))}
       </div>
       <div className="flex gap-3 items-center flex-wrap">
-        <select className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none bg-white shrink-0" value={searchCol} onChange={e => setSearchCol(e.target.value)}>
+        <select
+          className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none bg-white shrink-0"
+          value={searchCol}
+          onChange={e => setListParams({ col: e.target.value, page: '1' })}
+        >
           {searchCols.map(c => <option key={c.k} value={c.k}>{c.l}</option>)}
         </select>
         <div className="flex-1 bg-white px-4 py-2.5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-3">
@@ -130,24 +155,62 @@ export function PartnerListView() {
             className="flex-1 outline-none text-sm"
             value={searchInput}
             onChange={e => setSearchInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') setSearch(searchInput); }}
+            onKeyDown={e => {
+              if (e.key === 'Enter') {
+                const v = searchInput.trim();
+                setListParams({
+                  ...(v ? { q: v } : { q: null }),
+                  page: '1',
+                });
+              }
+            }}
           />
           {searchInput && (
-            <button onClick={() => { setSearchInput(''); setSearch(''); }} className="text-slate-400 hover:text-slate-600 text-xs">✕</button>
+            <button
+              onClick={() => {
+                setSearchInput('');
+                setListParams({ q: null, page: '1' });
+              }}
+              className="text-slate-400 hover:text-slate-600 text-xs"
+            >
+              ✕
+            </button>
           )}
         </div>
       </div>
       <div className="flex items-center gap-3 flex-wrap">
         <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-          <input type="checkbox" checked={delivFilter} onChange={e => setDelivFilter(e.target.checked)} className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+          <input
+            type="checkbox"
+            checked={delivFilter}
+            onChange={e => {
+              const on = e.target.checked;
+              setListParams(
+                on
+                  ? { deliv: '1', page: '1' }
+                  : { deliv: null, dvf: null, dvt: null, page: '1' },
+              );
+            }}
+            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+          />
           <span className="text-slate-700 font-medium">납품완료 거래처만</span>
         </label>
         {delivFilter && (
           <div className="flex items-center gap-2 text-sm">
             <Calendar className="w-4 h-4 text-slate-400" />
-            <input type="date" className={`${inp} !w-36`} value={delivDateFrom} onChange={e => setDelivDateFrom(e.target.value)} />
+            <input
+              type="date"
+              className={`${inp} !w-36`}
+              value={delivDateFrom}
+              onChange={e => setListParams({ dvf: e.target.value || null, page: '1' })}
+            />
             <span className="text-slate-400">~</span>
-            <input type="date" className={`${inp} !w-36`} value={delivDateTo} onChange={e => setDelivDateTo(e.target.value)} />
+            <input
+              type="date"
+              className={`${inp} !w-36`}
+              value={delivDateTo}
+              onChange={e => setListParams({ dvt: e.target.value || null, page: '1' })}
+            />
           </div>
         )}
       </div>
@@ -194,7 +257,13 @@ export function PartnerListView() {
             {pagedVisible.length === 0 && <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-400">검색 결과가 없습니다</td></tr>}
           </tbody>
         </table>
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} totalItems={totalItems} pageSize={pageSize} />
+        <Pagination
+          page={page}
+          totalPages={totalPages}
+          onPageChange={pg => setListParams({ page: String(pg) })}
+          totalItems={totalItems}
+          pageSize={pageSize}
+        />
       </div>
       {modal && (
         <Modal title={editId ? '거래처 수정' : '거래처 등록'} onClose={() => setModal(false)} wide>
