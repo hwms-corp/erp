@@ -249,7 +249,8 @@ export const today = () => ymd(new Date());
 
 export const monthStart = () => {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
+  const prevMonthFirstDay = new Date(d.getFullYear(), d.getMonth() - 1, 1);
+  return ymd(prevMonthFirstDay);
 };
 
 export const monthEnd = () => {
