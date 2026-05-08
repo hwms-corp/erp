@@ -133,13 +133,22 @@ export function usePOs() {
 
     if (updateErr) return { error: updateErr };
 
-    const { data: existing } = await supabase
+    const { data: existing, error: existingErr } = await supabase
       .from('po_items')
-      .select('id, seq')
+      .select('id, seq, deleted_at')
       .eq('po_id', poId)
       .order('seq', { ascending: true });
 
+    if (existingErr) return { error: existingErr };
+
     const existingItems = existing || [];
+    const activeBySeq = new Map<number, { id: number; seq: number; deleted_at: string | null }>();
+    const deletedBySeq = new Map<number, { id: number; seq: number; deleted_at: string | null }>();
+
+    existingItems.forEach(item => {
+      if (item.deleted_at) deletedBySeq.set(item.seq, item);
+      else activeBySeq.set(item.seq, item);
+    });
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
@@ -153,16 +162,36 @@ export function usePOs() {
         order_item_id: item.order_item_id || null,
       };
 
-      if (i < existingItems.length) {
-        await supabase.from('po_items').update({ ...row, seq: i + 1 }).eq('id', existingItems[i].id);
+      const seq = i + 1;
+      const active = activeBySeq.get(seq);
+      const deleted = deletedBySeq.get(seq);
+
+      if (active) {
+        const { error } = await supabase.from('po_items').update({ ...row, seq }).eq('id', active.id);
+        if (error) return { error };
+      } else if (deleted) {
+        const { error } = await supabase
+          .from('po_items')
+          .update({ ...row, seq, deleted_at: null, received_qty: 0 })
+          .eq('id', deleted.id);
+        if (error) return { error };
       } else {
-        await supabase.from('po_items').insert({ ...row, po_id: poId, seq: i + 1, received_qty: 0 });
+        const { error } = await supabase.from('po_items').insert({ ...row, po_id: poId, seq, received_qty: 0 });
+        if (error) return { error };
       }
     }
 
-    if (items.length < existingItems.length) {
-      const idsToDelete = existingItems.slice(items.length).map(e => e.id);
-      await supabase.from('po_items').delete().in('id', idsToDelete);
+    const idsToDelete = Array.from(activeBySeq.entries())
+      .filter(([seq]) => seq > items.length)
+      .map(([, item]) => item.id);
+
+    if (idsToDelete.length > 0) {
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from('po_items')
+        .update({ deleted_at: now })
+        .in('id', idsToDelete);
+      if (error) return { error };
     }
 
     return { error: null };
