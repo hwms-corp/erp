@@ -242,9 +242,11 @@ export function DeliveryView() {
                     <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-xs font-medium">재고납품</span>
                   )}
                 </div>
-                <div className="text-sm text-slate-500">
-                  수주일: {card.order_date}
-                  {card.delivery_date && <span className="ml-3">납품일: {card.delivery_date}</span>}
+                <div className="flex items-center gap-3 text-sm text-slate-500 flex-wrap">
+                  {card.delivery_status === 'completed' && card.delivery_date && (
+                    <span>납품 처리: {card.delivery_date}</span>
+                  )}
+                  <span>수주일: {card.order_date}</span>
                 </div>
               </div>
 

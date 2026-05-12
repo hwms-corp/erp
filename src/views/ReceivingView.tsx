@@ -28,6 +28,11 @@ interface POCardData extends POWithDetail {
 
 const TAB_KEYS = new Set<TabKey>(['all', 'ordered', 'partial_received', 'received']);
 
+function isoToLocalYmd(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export function ReceivingView() {
   const { fetchPOs, fetchPOItems, updateReceivedQty } = usePOs();
   const { revertDelivery } = useDelivery();
@@ -255,6 +260,9 @@ export function ReceivingView() {
                   <StatusBadge status={po.status} />
                 </div>
                 <div className="flex items-center gap-3 text-sm text-slate-500">
+                  {po.items.some(it => it.received_qty > 0) && (
+                    <span>입고 처리: {isoToLocalYmd(po.updated_at)}</span>
+                  )}
                   <span>발주일: {po.po_date}</span>
                   {po.required_date && <span>납기: {po.required_date}</span>}
                 </div>
