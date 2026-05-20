@@ -24,8 +24,25 @@ export function useDelivery() {
       .update({
         delivery_status: 'pending',
         delivery_date: null,
+        tax_invoice_issued_status: null,
+        tax_invoice_issued_date: null,
       })
       .eq('id', orderId)
+      .select()
+      .single();
+
+    return { data, error };
+  }, []);
+
+  const issueTaxInvoice = useCallback(async (orderId: number) => {
+    const { data, error } = await supabase
+      .from('orders')
+      .update({
+        tax_invoice_issued_status: 'issued',
+        tax_invoice_issued_date: today(),
+      })
+      .eq('id', orderId)
+      .eq('delivery_status', 'completed')
       .select()
       .single();
 
@@ -50,5 +67,5 @@ export function useDelivery() {
     return { data: data as PartnerDeliverySummary[] | null, error };
   }, []);
 
-  return { completeDelivery, revertDelivery, fetchDeliverySummary };
+  return { completeDelivery, revertDelivery, issueTaxInvoice, fetchDeliverySummary };
 }

@@ -5,6 +5,7 @@ export type PartnerType = 'sales' | 'purchasing' | 'both';
 export type BizType = 'individual' | 'corporate';
 export type OrderStatus = 'draft' | 'confirmed';
 export type DeliveryStatus = 'pending' | 'completed';
+export type TaxInvoiceIssuedStatus = 'issued';
 export type POStatus = 'ordered' | 'partial_received' | 'received';
 export type PaymentTerms = 'immediate' | 'settlement';
 
@@ -58,6 +59,8 @@ export interface Order {
   status: OrderStatus;
   delivery_status: DeliveryStatus | null;
   delivery_date: string | null;
+  tax_invoice_issued_status: TaxInvoiceIssuedStatus | null;
+  tax_invoice_issued_date: string | null;
   origin_order_id: number | null;
   created_by: number;
   created_at: string;

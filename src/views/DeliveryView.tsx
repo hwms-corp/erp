@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { mergeQuery } from '@/lib/listQuery';
 import { motion } from 'motion/react';
-import { Truck, CheckCircle2, FileText, Search, Calendar, RotateCcw } from 'lucide-react';
+import { Truck, CheckCircle2, FileText, Search, Calendar, RotateCcw, Receipt } from 'lucide-react';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Pagination, usePagination } from '@/components/Pagination';
 import { useDelivery } from '@/hooks/useDelivery';
@@ -30,7 +30,7 @@ interface DeliveryCard extends OrderWithPartner {
 export function DeliveryView() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { completeDelivery, revertDelivery } = useDelivery();
+  const { completeDelivery, revertDelivery, issueTaxInvoice } = useDelivery();
   const [cards, setCards] = useState<DeliveryCard[]>([]);
 
   const listQ = useMemo(() => {
@@ -145,6 +145,20 @@ export function DeliveryView() {
     }
   };
 
+  const isTaxInvoiceIssued = (card: DeliveryCard) =>
+    card.tax_invoice_issued_status === 'issued' && !!card.tax_invoice_issued_date;
+
+  const handleIssueTaxInvoice = async (card: DeliveryCard) => {
+    if (isTaxInvoiceIssued(card)) return;
+    if (!confirm(`${card.doc_no} 세금계산서 발행 처리하시겠습니까?`)) return;
+    const { error } = await issueTaxInvoice(card.id);
+    if (error) {
+      alert('발행 처리 실패: ' + (error.message || ''));
+    } else {
+      await loadAll();
+    }
+  };
+
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <h2 className="text-2xl font-bold text-slate-900">납품 관리</h2>
@@ -243,6 +257,9 @@ export function DeliveryView() {
                   )}
                 </div>
                 <div className="flex items-center gap-3 text-sm text-slate-500 flex-wrap">
+                  {isCompleted && isTaxInvoiceIssued(card) && (
+                    <span>세금계산서 발행: {card.tax_invoice_issued_date}</span>
+                  )}
                   {card.delivery_status === 'completed' && card.delivery_date && (
                     <span>납품 처리: {card.delivery_date}</span>
                   )}
@@ -282,6 +299,18 @@ export function DeliveryView() {
                 <div className="flex items-center gap-2">
                   {isCompleted && (
                     <>
+                      <button
+                        type="button"
+                        disabled={isTaxInvoiceIssued(card)}
+                        onClick={() => handleIssueTaxInvoice(card)}
+                        className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium ${
+                          isTaxInvoiceIssued(card)
+                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                            : 'bg-violet-50 text-violet-700 hover:bg-violet-100'
+                        }`}
+                      >
+                        <Receipt className="w-4 h-4" /> 세금계산서 발행
+                      </button>
                       <button
                         onClick={async () => {
                           if (!confirm(`${card.doc_no}을(를) 납품대기로 되돌리시겠습니까?`)) return;
