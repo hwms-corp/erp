@@ -10,11 +10,11 @@ import { usePOs } from '@/hooks/usePOs';
 import { useDelivery } from '@/hooks/useDelivery';
 import { supabase } from '@/lib/supabase';
 import { fmt, fmtW, PO_STATUS_LABELS, monthStart, monthEnd, today, formatYmdSlash } from '@/types';
-import type { POWithDetail, POItem, POStatus } from '@/types';
+import type { POWithDetail, POItem } from '@/types';
 
 const inp = 'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500';
 
-type TabKey = 'all' | 'ordered' | 'partial_received' | 'received';
+type TabKey = 'all' | 'ordered' | 'partial_received' | 'received' | 'unremitted';
 const tabs: { key: TabKey; label: string }[] = [
   { key: 'all', label: '전체' },
   { key: 'ordered', label: '발주' },
@@ -26,7 +26,7 @@ interface POCardData extends POWithDetail {
   items: POItem[];
 }
 
-const TAB_KEYS = new Set<TabKey>(['all', 'ordered', 'partial_received', 'received']);
+const TAB_KEYS = new Set<TabKey>(['all', 'ordered', 'partial_received', 'received', 'unremitted']);
 
 function isoToLocalYmd(iso: string): string {
   const d = new Date(iso);
@@ -42,14 +42,14 @@ export function ReceivingView() {
   const listQ = useMemo(() => {
     const pageRaw = Number.parseInt(searchParams.get('page') || '1', 10);
     const tabRaw = (searchParams.get('tab') || 'all') as TabKey;
+    const tab = TAB_KEYS.has(tabRaw) ? tabRaw : 'all';
     return {
-      tab: TAB_KEYS.has(tabRaw) ? tabRaw : 'all',
+      tab: searchParams.get('unremitted') === '1' ? 'unremitted' : tab,
       q: searchParams.get('q') ?? '',
       col: searchParams.get('col') ?? 'all',
       from: searchParams.get('from') ?? monthStart(),
       to: searchParams.get('to') ?? monthEnd(),
       page: Number.isFinite(pageRaw) && pageRaw >= 1 ? pageRaw : 1,
-      unremitted: searchParams.get('unremitted') === '1',
     };
   }, [searchParams]);
 
@@ -58,7 +58,7 @@ export function ReceivingView() {
     setSearchInput(listQ.q);
   }, [listQ.q]);
 
-  const { tab, q: search, col: searchCol, from: dateFrom, to: dateTo, page, unremitted } = listQ;
+  const { tab, q: search, col: searchCol, from: dateFrom, to: dateTo, page } = listQ;
   const [partialModal, setPartialModal] = useState<{ poId: number; item: POItem } | null>(null);
   const [partialQty, setPartialQty] = useState(0);
   const [remittanceModal, setRemittanceModal] = useState<POCardData | null>(null);
@@ -89,7 +89,16 @@ export function ReceivingView() {
   useEffect(() => { loadAll(); }, [loadAll]);
 
   const filtered = useMemo(() => {
-    let list = tab === 'all' ? cards : cards.filter(c => c.status === tab);
+    let list: POCardData[];
+    if (tab === 'unremitted') {
+      list = cards.filter(
+        po =>
+          po.items.some(it => it.received_qty > 0) &&
+          !(po.remittance_status === 'completed' && !!po.remittance_date),
+      );
+    } else {
+      list = tab === 'all' ? cards : cards.filter(c => c.status === tab);
+    }
     if (dateFrom) list = list.filter(c => c.po_date >= dateFrom);
     if (dateTo) list = list.filter(c => c.po_date <= dateTo);
     if (search) {
@@ -112,15 +121,8 @@ export function ReceivingView() {
         return false;
       });
     }
-    if (unremitted) {
-      list = list.filter(
-        po =>
-          po.items.some(it => it.received_qty > 0) &&
-          !(po.remittance_status === 'completed' && !!po.remittance_date),
-      );
-    }
     return list;
-  }, [cards, tab, dateFrom, dateTo, search, searchCol, unremitted]);
+  }, [cards, tab, dateFrom, dateTo, search, searchCol]);
 
   const { totalItems, totalPages, pageSize, getPage } = usePagination(filtered, 10);
   const pagedFiltered = getPage(page);
@@ -225,7 +227,7 @@ export function ReceivingView() {
         {tabs.map(t => (
             <button
               key={t.key}
-              onClick={() => setListParams({ tab: t.key, page: '1' })}
+              onClick={() => setListParams({ tab: t.key, page: '1', unremitted: null })}
               className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
                 tab === t.key ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
               }`}
@@ -235,9 +237,9 @@ export function ReceivingView() {
         ))}
         <button
           type="button"
-          onClick={() => setListParams({ unremitted: unremitted ? null : '1', page: '1' })}
+          onClick={() => setListParams({ tab: 'unremitted', page: '1', unremitted: null })}
           className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-            unremitted ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+            tab === 'unremitted' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
           }`}
         >
           미송금업체

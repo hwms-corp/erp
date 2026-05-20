@@ -13,14 +13,14 @@ import { fmtW, monthStart, monthEnd, today, formatYmdSlash } from '@/types';
 const inp = 'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500';
 import type { OrderWithPartner, OrderItem } from '@/types';
 
-type TabKey = 'all' | 'pending' | 'completed';
+type TabKey = 'all' | 'pending' | 'completed' | 'no_tax';
 const tabs: { key: TabKey; label: string }[] = [
   { key: 'all', label: '전체' },
   { key: 'pending', label: '납품대기' },
   { key: 'completed', label: '납품완료' },
 ];
 
-const DELIVERY_TAB_KEYS = new Set<TabKey>(['all', 'pending', 'completed']);
+const DELIVERY_TAB_KEYS = new Set<TabKey>(['all', 'pending', 'completed', 'no_tax']);
 
 interface DeliveryCard extends OrderWithPartner {
   items: OrderItem[];
@@ -41,14 +41,15 @@ export function DeliveryView() {
   const listQ = useMemo(() => {
     const pageRaw = Number.parseInt(searchParams.get('page') || '1', 10);
     const tabRaw = (searchParams.get('tab') || 'all') as TabKey;
+    let resolved = DELIVERY_TAB_KEYS.has(tabRaw) ? tabRaw : 'all';
+    if (searchParams.get('no_tax') === '1') resolved = 'no_tax';
     return {
-      tab: DELIVERY_TAB_KEYS.has(tabRaw) ? tabRaw : 'all',
+      tab: resolved,
       q: searchParams.get('q') ?? '',
       col: searchParams.get('col') ?? 'all',
       from: searchParams.get('from') ?? monthStart(),
       to: searchParams.get('to') ?? monthEnd(),
       page: Number.isFinite(pageRaw) && pageRaw >= 1 ? pageRaw : 1,
-      noTax: searchParams.get('no_tax') === '1',
     };
   }, [searchParams]);
 
@@ -57,7 +58,7 @@ export function DeliveryView() {
     setSearchInput(listQ.q);
   }, [listQ.q]);
 
-  const { tab, q: search, col: searchCol, from: dateFrom, to: dateTo, page, noTax } = listQ;
+  const { tab, q: search, col: searchCol, from: dateFrom, to: dateTo, page } = listQ;
 
   const setListParams = useCallback((patch: Record<string, string | null | undefined>, replace = true) => {
     setSearchParams(prev => mergeQuery(prev, patch), { replace });
@@ -111,8 +112,16 @@ export function DeliveryView() {
 
   const filtered = useMemo(() => {
     let list = cards.filter(c => c.allPOsReceived || !c.hasPOs);
-    if (tab === 'pending') list = list.filter(c => c.delivery_status === 'pending');
-    if (tab === 'completed') list = list.filter(c => c.delivery_status === 'completed');
+    if (tab === 'no_tax') {
+      list = list.filter(
+        c =>
+          c.delivery_status === 'completed' &&
+          !(c.tax_invoice_issued_status === 'issued' && !!c.tax_invoice_issued_date),
+      );
+    } else {
+      if (tab === 'pending') list = list.filter(c => c.delivery_status === 'pending');
+      if (tab === 'completed') list = list.filter(c => c.delivery_status === 'completed');
+    }
     if (dateFrom) list = list.filter(c => c.order_date >= dateFrom);
     if (dateTo) list = list.filter(c => c.order_date <= dateTo);
     if (search) {
@@ -135,15 +144,8 @@ export function DeliveryView() {
         return false;
       });
     }
-    if (noTax) {
-      list = list.filter(
-        c =>
-          c.delivery_status === 'completed' &&
-          !(c.tax_invoice_issued_status === 'issued' && !!c.tax_invoice_issued_date),
-      );
-    }
     return list;
-  }, [cards, tab, dateFrom, dateTo, search, searchCol, noTax]);
+  }, [cards, tab, dateFrom, dateTo, search, searchCol]);
 
   const { totalItems, totalPages, pageSize, getPage } = usePagination(filtered, 10);
   const paged = getPage(page);
@@ -193,7 +195,7 @@ export function DeliveryView() {
         {tabs.map(t => (
             <button
               key={t.key}
-              onClick={() => setListParams({ tab: t.key, page: '1' })}
+              onClick={() => setListParams({ tab: t.key, page: '1', no_tax: null })}
               className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
                 tab === t.key ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
               }`}
@@ -203,9 +205,9 @@ export function DeliveryView() {
         ))}
         <button
           type="button"
-          onClick={() => setListParams({ no_tax: noTax ? null : '1', page: '1' })}
+          onClick={() => setListParams({ tab: 'no_tax', page: '1', no_tax: null })}
           className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-            noTax ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+            tab === 'no_tax' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
           }`}
         >
           세금계산서 미발행
