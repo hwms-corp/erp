@@ -2,13 +2,13 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { mergeQuery } from '@/lib/listQuery';
 import { motion } from 'motion/react';
-import { Truck, CheckCircle2, FileText, Search, Calendar, RotateCcw, Receipt } from 'lucide-react';
+import { Truck, CheckCircle2, FileText, Search, Calendar, RotateCcw, Receipt, Check } from 'lucide-react';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Pagination, usePagination } from '@/components/Pagination';
 import { Modal } from '@/components/Modal';
 import { useDelivery } from '@/hooks/useDelivery';
 import { supabase } from '@/lib/supabase';
-import { fmtW, monthStart, monthEnd, today, formatYmdSlash } from '@/types';
+import { fmt, fmtW, monthStart, monthEnd, today, formatYmdSlash } from '@/types';
 
 const inp = 'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500';
 import type { OrderWithPartner, OrderItem } from '@/types';
@@ -36,6 +36,8 @@ export function DeliveryView() {
   const [taxInvoiceModal, setTaxInvoiceModal] = useState<DeliveryCard | null>(null);
   const [taxInvoiceDate, setTaxInvoiceDate] = useState(today);
   const [taxInvoiceSubmitting, setTaxInvoiceSubmitting] = useState(false);
+  const [selectedNoTaxIds, setSelectedNoTaxIds] = useState<number[]>([]);
+  const [bulkIssueSubmitting, setBulkIssueSubmitting] = useState(false);
   const taxInvoiceDateInputRef = useRef<HTMLInputElement>(null);
 
   const listQ = useMemo(() => {
@@ -59,6 +61,7 @@ export function DeliveryView() {
   }, [listQ.q]);
 
   const { tab, q: search, col: searchCol, from: dateFrom, to: dateTo, page } = listQ;
+  const isNoTaxTab = tab === 'no_tax';
 
   const setListParams = useCallback((patch: Record<string, string | null | undefined>, replace = true) => {
     setSearchParams(prev => mergeQuery(prev, patch), { replace });
@@ -149,6 +152,10 @@ export function DeliveryView() {
 
   const { totalItems, totalPages, pageSize, getPage } = usePagination(filtered, 10);
   const paged = getPage(page);
+  const noTaxTotalAmount = useMemo(
+    () => paged.reduce((sum, card) => sum + card.total_amount, 0),
+    [paged],
+  );
 
   const handleComplete = async (orderId: number) => {
     if (!confirm('납품완료 처리하시겠습니까?')) return;
@@ -187,6 +194,35 @@ export function DeliveryView() {
     }
   };
 
+  const toggleNoTaxSelection = (orderId: number, checked: boolean) => {
+    setSelectedNoTaxIds(prev =>
+      checked ? [...prev, orderId] : prev.filter(id => id !== orderId)
+    );
+  };
+
+  const issueTaxInvoicesBulk = async () => {
+    if (!isNoTaxTab || selectedNoTaxIds.length === 0 || bulkIssueSubmitting) return;
+    if (!confirm(`선택한 ${selectedNoTaxIds.length}건을 세금계산서 일괄발행하시겠습니까?`)) return;
+
+    setBulkIssueSubmitting(true);
+    const issueDate = today();
+    const targetIds = [...selectedNoTaxIds];
+    const results = await Promise.all(targetIds.map(id => issueTaxInvoice(id, issueDate)));
+    const failedIds = targetIds.filter((_, i) => !!results[i].error);
+
+    setBulkIssueSubmitting(false);
+    setSelectedNoTaxIds(failedIds);
+    await loadAll();
+
+    if (failedIds.length > 0) {
+      alert(`${failedIds.length}건은 발행 처리에 실패했습니다. 다시 확인해 주세요.`);
+    }
+  };
+
+  useEffect(() => {
+    if (!isNoTaxTab) setSelectedNoTaxIds([]);
+  }, [isNoTaxTab]);
+
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <h2 className="text-2xl font-bold text-slate-900">납품 관리</h2>
@@ -212,6 +248,16 @@ export function DeliveryView() {
         >
           세금계산서 미발행
         </button>
+        {isNoTaxTab && (
+          <button
+            type="button"
+            onClick={issueTaxInvoicesBulk}
+            disabled={selectedNoTaxIds.length === 0 || bulkIssueSubmitting}
+            className="ml-auto px-4 py-2 rounded-xl text-sm font-medium transition-colors bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {bulkIssueSubmitting ? '일괄발행 중…' : '세금계산서 일괄발행'}
+          </button>
+        )}
       </div>
 
       <div className="flex gap-3 items-center flex-wrap">
@@ -278,6 +324,21 @@ export function DeliveryView() {
             <div key={card.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="flex items-center justify-between p-4 border-b border-slate-100">
                 <div className="flex items-center gap-3">
+                  {isNoTaxTab && (
+                    <button
+                      type="button"
+                      role="checkbox"
+                      aria-checked={selectedNoTaxIds.includes(card.id)}
+                      onClick={() => toggleNoTaxSelection(card.id, !selectedNoTaxIds.includes(card.id))}
+                      className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${
+                        selectedNoTaxIds.includes(card.id)
+                          ? 'bg-violet-600 border-violet-600 text-white'
+                          : 'bg-white border-violet-300 text-transparent hover:border-violet-500'
+                      }`}
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
+                  )}
                   <Truck className="w-5 h-5 text-indigo-500" />
                   <div>
                     <span
@@ -386,13 +447,20 @@ export function DeliveryView() {
             해당 조건의 납품 건이 없습니다
           </div>
         )}
-        <Pagination
-          page={page}
-          totalPages={totalPages}
-          onPageChange={pg => setListParams({ page: String(pg) })}
-          totalItems={totalItems}
-          pageSize={pageSize}
-        />
+        <div className="flex items-center justify-between gap-3">
+          {tab === 'no_tax' ? (
+            <div className="text-base font-semibold text-slate-700">
+              총 금액 : {fmt(noTaxTotalAmount)}원
+            </div>
+          ) : <div />}
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            onPageChange={pg => setListParams({ page: String(pg) })}
+            totalItems={totalItems}
+            pageSize={pageSize}
+          />
+        </div>
       </div>
 
       {taxInvoiceModal && (
