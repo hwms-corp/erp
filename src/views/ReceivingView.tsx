@@ -1,15 +1,15 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { mergeQuery } from '@/lib/listQuery';
 import { motion } from 'motion/react';
-import { Package, CheckCircle2, RotateCcw, Search, Calendar } from 'lucide-react';
+import { Package, CheckCircle2, RotateCcw, Search, Calendar, Banknote } from 'lucide-react';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Pagination, usePagination } from '@/components/Pagination';
 import { Modal } from '@/components/Modal';
 import { usePOs } from '@/hooks/usePOs';
 import { useDelivery } from '@/hooks/useDelivery';
 import { supabase } from '@/lib/supabase';
-import { fmt, fmtW, PO_STATUS_LABELS, monthStart, monthEnd } from '@/types';
+import { fmt, fmtW, PO_STATUS_LABELS, monthStart, monthEnd, today, formatYmdSlash } from '@/types';
 import type { POWithDetail, POItem, POStatus } from '@/types';
 
 const inp = 'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500';
@@ -34,7 +34,7 @@ function isoToLocalYmd(iso: string): string {
 }
 
 export function ReceivingView() {
-  const { fetchPOs, fetchPOItems, updateReceivedQty } = usePOs();
+  const { fetchPOs, fetchPOItems, updateReceivedQty, completeRemittance, clearRemittance } = usePOs();
   const { revertDelivery } = useDelivery();
   const [searchParams, setSearchParams] = useSearchParams();
   const [cards, setCards] = useState<POCardData[]>([]);
@@ -49,6 +49,7 @@ export function ReceivingView() {
       from: searchParams.get('from') ?? monthStart(),
       to: searchParams.get('to') ?? monthEnd(),
       page: Number.isFinite(pageRaw) && pageRaw >= 1 ? pageRaw : 1,
+      unremitted: searchParams.get('unremitted') === '1',
     };
   }, [searchParams]);
 
@@ -57,9 +58,13 @@ export function ReceivingView() {
     setSearchInput(listQ.q);
   }, [listQ.q]);
 
-  const { tab, q: search, col: searchCol, from: dateFrom, to: dateTo, page } = listQ;
+  const { tab, q: search, col: searchCol, from: dateFrom, to: dateTo, page, unremitted } = listQ;
   const [partialModal, setPartialModal] = useState<{ poId: number; item: POItem } | null>(null);
   const [partialQty, setPartialQty] = useState(0);
+  const [remittanceModal, setRemittanceModal] = useState<POCardData | null>(null);
+  const [remittanceDate, setRemittanceDate] = useState(today);
+  const [remittanceSubmitting, setRemittanceSubmitting] = useState(false);
+  const remittanceDateInputRef = useRef<HTMLInputElement>(null);
   const searchCols = [
     { k: 'all', l: '전체' },
     { k: 'doc_no', l: '발주번호' },
@@ -107,8 +112,15 @@ export function ReceivingView() {
         return false;
       });
     }
+    if (unremitted) {
+      list = list.filter(
+        po =>
+          po.items.some(it => it.received_qty > 0) &&
+          !(po.remittance_status === 'completed' && !!po.remittance_date),
+      );
+    }
     return list;
-  }, [cards, tab, dateFrom, dateTo, search, searchCol]);
+  }, [cards, tab, dateFrom, dateTo, search, searchCol, unremitted]);
 
   const { totalItems, totalPages, pageSize, getPage } = usePagination(filtered, 10);
   const pagedFiltered = getPage(page);
@@ -152,11 +164,44 @@ export function ReceivingView() {
     }
   };
 
+  const hasReceivedItems = (po: POCardData) => po.items.some(it => it.received_qty > 0);
+
+  const isRemittanceCompleted = (po: POCardData) =>
+    po.remittance_status === 'completed' && !!po.remittance_date;
+
+  const openRemittanceModal = (po: POCardData) => {
+    if (!hasReceivedItems(po) || isRemittanceCompleted(po)) return;
+    setRemittanceDate(today());
+    setRemittanceModal(po);
+  };
+
+  const closeRemittanceModal = () => {
+    if (remittanceSubmitting) return;
+    setRemittanceModal(null);
+  };
+
+  const confirmRemittance = async () => {
+    if (!remittanceModal || !remittanceDate) return;
+    setRemittanceSubmitting(true);
+    const { error } = await completeRemittance(remittanceModal.id, remittanceDate);
+    setRemittanceSubmitting(false);
+    if (error) {
+      alert('송금완료 처리 실패: ' + (error.message || ''));
+    } else {
+      setRemittanceModal(null);
+      await loadAll();
+    }
+  };
+
   const handleResetItem = async (item: POItem) => {
     if (!confirm(`"${item.name}" 입고수량을 0으로 초기화하시겠습니까?`)) return;
     await updateReceivedQty(item.id, 0);
     const po = cards.find(c => c.items.some(i => i.id === item.id));
-    if (po) await revertDeliveryIfCompleted(po);
+    if (po) {
+      await revertDeliveryIfCompleted(po);
+      const stillHasReceived = po.items.some(i => i.id !== item.id && i.received_qty > 0);
+      if (!stillHasReceived) await clearRemittance(po.id);
+    }
     await loadAll();
   };
 
@@ -167,6 +212,7 @@ export function ReceivingView() {
         await updateReceivedQty(item.id, 0);
       }
     }
+    await clearRemittance(po.id);
     await revertDeliveryIfCompleted(po);
     await loadAll();
   };
@@ -175,18 +221,27 @@ export function ReceivingView() {
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <h2 className="text-2xl font-bold text-slate-900">입고 관리</h2>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {tabs.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setListParams({ tab: t.key, page: '1' })}
-            className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-              tab === t.key ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            {t.label}
-          </button>
+            <button
+              key={t.key}
+              onClick={() => setListParams({ tab: t.key, page: '1' })}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                tab === t.key ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              {t.label}
+            </button>
         ))}
+        <button
+          type="button"
+          onClick={() => setListParams({ unremitted: unremitted ? null : '1', page: '1' })}
+          className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+            unremitted ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          미송금업체
+        </button>
       </div>
 
       <div className="flex gap-3 items-center flex-wrap">
@@ -259,8 +314,11 @@ export function ReceivingView() {
                   </div>
                   <StatusBadge status={po.status} />
                 </div>
-                <div className="flex items-center gap-3 text-sm text-slate-500">
-                  {po.items.some(it => it.received_qty > 0) && (
+                <div className="flex items-center gap-3 text-sm text-slate-500 flex-wrap">
+                  {isRemittanceCompleted(po) && (
+                    <span>송금완료: {formatYmdSlash(po.remittance_date!)}</span>
+                  )}
+                  {hasReceivedItems(po) && (
                     <span>입고 처리: {isoToLocalYmd(po.updated_at)}</span>
                   )}
                   <span>발주일: {po.po_date}</span>
@@ -329,13 +387,27 @@ export function ReceivingView() {
                   발주금액: <strong>{fmtW(po.po_amount)}</strong> / 입고금액: <strong>{fmtW(po.received_amount)}</strong>
                 </span>
                 <div className="flex items-center gap-2">
-                  {po.items.some(it => it.received_qty > 0) && (
-                    <button
-                      onClick={() => handleResetAll(po)}
-                      className="flex items-center gap-1.5 px-4 py-2 bg-red-50 text-red-600 rounded-xl text-sm font-medium hover:bg-red-100"
-                    >
-                      <RotateCcw className="w-4 h-4" /> 입고 초기화
-                    </button>
+                  {hasReceivedItems(po) && (
+                    <>
+                      <button
+                        type="button"
+                        disabled={isRemittanceCompleted(po)}
+                        onClick={() => openRemittanceModal(po)}
+                        className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium ${
+                          isRemittanceCompleted(po)
+                            ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                            : 'bg-sky-50 text-sky-700 hover:bg-sky-100'
+                        }`}
+                      >
+                        <Banknote className="w-4 h-4" /> 송금완료
+                      </button>
+                      <button
+                        onClick={() => handleResetAll(po)}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-red-50 text-red-600 rounded-xl text-sm font-medium hover:bg-red-100"
+                      >
+                        <RotateCcw className="w-4 h-4" /> 입고 초기화
+                      </button>
+                    </>
                   )}
                   {!isFullyReceived && (
                     <button
@@ -364,6 +436,57 @@ export function ReceivingView() {
           pageSize={pageSize}
         />
       </div>
+
+      {remittanceModal && (
+        <Modal title="송금완료일자 선택" onClose={closeRemittanceModal}>
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600">
+              <span className="font-medium text-slate-900">{remittanceModal.doc_no}</span>
+              <span className="mx-1">·</span>
+              {remittanceModal.partner_name}
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">송금완료일자</label>
+              <button
+                type="button"
+                disabled={remittanceSubmitting}
+                onClick={() => remittanceDateInputRef.current?.showPicker()}
+                className={`${inp} w-full text-left tabular-nums text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                {remittanceDate ? formatYmdSlash(remittanceDate) : '—'}
+              </button>
+              <input
+                ref={remittanceDateInputRef}
+                type="date"
+                className="sr-only"
+                value={remittanceDate}
+                onChange={e => setRemittanceDate(e.target.value)}
+                disabled={remittanceSubmitting}
+                tabIndex={-1}
+                aria-hidden
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={closeRemittanceModal}
+                disabled={remittanceSubmitting}
+                className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 disabled:opacity-50"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={confirmRemittance}
+                disabled={remittanceSubmitting || !remittanceDate}
+                className="px-4 py-2 bg-sky-600 text-white rounded-xl text-sm font-medium hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {remittanceSubmitting ? '처리 중…' : '완료'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {partialModal && (
         <Modal title="부분입고 수량 입력" onClose={() => { setPartialModal(null); setPartialQty(0); }}>

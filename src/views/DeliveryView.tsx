@@ -48,6 +48,7 @@ export function DeliveryView() {
       from: searchParams.get('from') ?? monthStart(),
       to: searchParams.get('to') ?? monthEnd(),
       page: Number.isFinite(pageRaw) && pageRaw >= 1 ? pageRaw : 1,
+      noTax: searchParams.get('no_tax') === '1',
     };
   }, [searchParams]);
 
@@ -56,7 +57,7 @@ export function DeliveryView() {
     setSearchInput(listQ.q);
   }, [listQ.q]);
 
-  const { tab, q: search, col: searchCol, from: dateFrom, to: dateTo, page } = listQ;
+  const { tab, q: search, col: searchCol, from: dateFrom, to: dateTo, page, noTax } = listQ;
 
   const setListParams = useCallback((patch: Record<string, string | null | undefined>, replace = true) => {
     setSearchParams(prev => mergeQuery(prev, patch), { replace });
@@ -134,8 +135,15 @@ export function DeliveryView() {
         return false;
       });
     }
+    if (noTax) {
+      list = list.filter(
+        c =>
+          c.delivery_status === 'completed' &&
+          !(c.tax_invoice_issued_status === 'issued' && !!c.tax_invoice_issued_date),
+      );
+    }
     return list;
-  }, [cards, tab, dateFrom, dateTo, search, searchCol]);
+  }, [cards, tab, dateFrom, dateTo, search, searchCol, noTax]);
 
   const { totalItems, totalPages, pageSize, getPage } = usePagination(filtered, 10);
   const paged = getPage(page);
@@ -181,18 +189,27 @@ export function DeliveryView() {
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <h2 className="text-2xl font-bold text-slate-900">납품 관리</h2>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {tabs.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setListParams({ tab: t.key, page: '1' })}
-            className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-              tab === t.key ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            {t.label}
-          </button>
+            <button
+              key={t.key}
+              onClick={() => setListParams({ tab: t.key, page: '1' })}
+              className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+                tab === t.key ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              {t.label}
+            </button>
         ))}
+        <button
+          type="button"
+          onClick={() => setListParams({ no_tax: noTax ? null : '1', page: '1' })}
+          className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
+            noTax ? 'bg-indigo-600 text-white shadow-sm' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          세금계산서 미발행
+        </button>
       </div>
 
       <div className="flex gap-3 items-center flex-wrap">

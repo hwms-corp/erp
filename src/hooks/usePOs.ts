@@ -197,6 +197,32 @@ export function usePOs() {
     return { error: null };
   }, []);
 
+  const completeRemittance = useCallback(async (poId: number, remittanceDate: string) => {
+    const { data, error } = await supabase
+      .from('pos')
+      .update({
+        remittance_status: 'completed',
+        remittance_date: remittanceDate,
+      })
+      .eq('id', poId)
+      .select()
+      .single();
+
+    return { data, error };
+  }, []);
+
+  const clearRemittance = useCallback(async (poId: number) => {
+    const { error } = await supabase
+      .from('pos')
+      .update({
+        remittance_status: null,
+        remittance_date: null,
+      })
+      .eq('id', poId);
+
+    return { error };
+  }, []);
+
   const deletePO = useCallback(async (poId: number) => {
     const now = new Date().toISOString();
     const { error: itemErr } = await supabase
@@ -220,5 +246,17 @@ export function usePOs() {
     return { error: null };
   }, []);
 
-  return { pos, loading, fetchPOs, fetchPOItems, createPO, updatePO, updateReceivedQty, checkOrderHasPO, deletePO };
+  return {
+    pos,
+    loading,
+    fetchPOs,
+    fetchPOItems,
+    createPO,
+    updatePO,
+    updateReceivedQty,
+    completeRemittance,
+    clearRemittance,
+    checkOrderHasPO,
+    deletePO,
+  };
 }
