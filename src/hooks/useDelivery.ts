@@ -34,12 +34,12 @@ export function useDelivery() {
     return { data, error };
   }, []);
 
-  const issueTaxInvoice = useCallback(async (orderId: number) => {
+  const issueTaxInvoice = useCallback(async (orderId: number, issuedDate: string) => {
     const { data, error } = await supabase
       .from('orders')
       .update({
         tax_invoice_issued_status: 'issued',
-        tax_invoice_issued_date: today(),
+        tax_invoice_issued_date: issuedDate,
       })
       .eq('id', orderId)
       .eq('delivery_status', 'completed')

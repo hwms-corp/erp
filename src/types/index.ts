@@ -250,6 +250,9 @@ const ymd = (d: Date) =>
 
 export const today = () => ymd(new Date());
 
+/** YYYY-MM-DD → YYYY/MM/DD (화면 표시용) */
+export const formatYmdSlash = (dateStr: string) => dateStr.replace(/-/g, '/');
+
 export const monthStart = () => {
   const d = new Date();
   const prevMonthFirstDay = new Date(d.getFullYear(), d.getMonth() - 1, 1);

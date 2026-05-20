@@ -1,13 +1,14 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { mergeQuery } from '@/lib/listQuery';
 import { motion } from 'motion/react';
 import { Truck, CheckCircle2, FileText, Search, Calendar, RotateCcw, Receipt } from 'lucide-react';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Pagination, usePagination } from '@/components/Pagination';
+import { Modal } from '@/components/Modal';
 import { useDelivery } from '@/hooks/useDelivery';
 import { supabase } from '@/lib/supabase';
-import { fmtW, monthStart, monthEnd } from '@/types';
+import { fmtW, monthStart, monthEnd, today, formatYmdSlash } from '@/types';
 
 const inp = 'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500';
 import type { OrderWithPartner, OrderItem } from '@/types';
@@ -32,6 +33,10 @@ export function DeliveryView() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { completeDelivery, revertDelivery, issueTaxInvoice } = useDelivery();
   const [cards, setCards] = useState<DeliveryCard[]>([]);
+  const [taxInvoiceModal, setTaxInvoiceModal] = useState<DeliveryCard | null>(null);
+  const [taxInvoiceDate, setTaxInvoiceDate] = useState(today);
+  const [taxInvoiceSubmitting, setTaxInvoiceSubmitting] = useState(false);
+  const taxInvoiceDateInputRef = useRef<HTMLInputElement>(null);
 
   const listQ = useMemo(() => {
     const pageRaw = Number.parseInt(searchParams.get('page') || '1', 10);
@@ -148,13 +153,26 @@ export function DeliveryView() {
   const isTaxInvoiceIssued = (card: DeliveryCard) =>
     card.tax_invoice_issued_status === 'issued' && !!card.tax_invoice_issued_date;
 
-  const handleIssueTaxInvoice = async (card: DeliveryCard) => {
+  const openTaxInvoiceModal = (card: DeliveryCard) => {
     if (isTaxInvoiceIssued(card)) return;
-    if (!confirm(`${card.doc_no} 세금계산서 발행 처리하시겠습니까?`)) return;
-    const { error } = await issueTaxInvoice(card.id);
+    setTaxInvoiceDate(today());
+    setTaxInvoiceModal(card);
+  };
+
+  const closeTaxInvoiceModal = () => {
+    if (taxInvoiceSubmitting) return;
+    setTaxInvoiceModal(null);
+  };
+
+  const confirmTaxInvoiceIssue = async () => {
+    if (!taxInvoiceModal || !taxInvoiceDate) return;
+    setTaxInvoiceSubmitting(true);
+    const { error } = await issueTaxInvoice(taxInvoiceModal.id, taxInvoiceDate);
+    setTaxInvoiceSubmitting(false);
     if (error) {
       alert('발행 처리 실패: ' + (error.message || ''));
     } else {
+      setTaxInvoiceModal(null);
       await loadAll();
     }
   };
@@ -302,7 +320,7 @@ export function DeliveryView() {
                       <button
                         type="button"
                         disabled={isTaxInvoiceIssued(card)}
-                        onClick={() => handleIssueTaxInvoice(card)}
+                        onClick={() => openTaxInvoiceModal(card)}
                         className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium ${
                           isTaxInvoiceIssued(card)
                             ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
@@ -357,6 +375,57 @@ export function DeliveryView() {
           pageSize={pageSize}
         />
       </div>
+
+      {taxInvoiceModal && (
+        <Modal title="세금계산서 발행일자 선택" onClose={closeTaxInvoiceModal}>
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600">
+              <span className="font-medium text-slate-900">{taxInvoiceModal.doc_no}</span>
+              <span className="mx-1">·</span>
+              {taxInvoiceModal.partner_name}
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">발행일자</label>
+              <button
+                type="button"
+                disabled={taxInvoiceSubmitting}
+                onClick={() => taxInvoiceDateInputRef.current?.showPicker()}
+                className={`${inp} w-full text-left tabular-nums text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                {taxInvoiceDate ? formatYmdSlash(taxInvoiceDate) : '—'}
+              </button>
+              <input
+                ref={taxInvoiceDateInputRef}
+                type="date"
+                className="sr-only"
+                value={taxInvoiceDate}
+                onChange={e => setTaxInvoiceDate(e.target.value)}
+                disabled={taxInvoiceSubmitting}
+                tabIndex={-1}
+                aria-hidden
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={closeTaxInvoiceModal}
+                disabled={taxInvoiceSubmitting}
+                className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 disabled:opacity-50"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={confirmTaxInvoiceIssue}
+                disabled={taxInvoiceSubmitting || !taxInvoiceDate}
+                className="px-4 py-2 bg-violet-600 text-white rounded-xl text-sm font-medium hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {taxInvoiceSubmitting ? '처리 중…' : '발행'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </motion.div>
   );
 }
