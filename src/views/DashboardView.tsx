@@ -1,12 +1,14 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion } from 'motion/react';
-import { ChevronLeft, ChevronRight, Search, Building2, TrendingUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search, Building2, TrendingUp, ShoppingCart } from 'lucide-react';
 import { MonthlySalesChart } from '@/components/MonthlySalesChart';
 import { PartnerSearchModal } from '@/components/PartnerSearchModal';
 import {
   useDashboard,
   MONTH_LABELS,
   aggregatePartnerMatrix,
+  aggregateMonthlyPurchases,
+  subtractMonthly,
 } from '@/hooks/useDashboard';
 import { usePartners } from '@/hooks/usePartners';
 import { fmtW } from '@/types';
@@ -62,20 +64,42 @@ function MatrixCell({ value, emphasis }: { value: number; emphasis?: boolean }) 
   );
 }
 
-function TotalCell({ value, emphasis }: { value: number; emphasis?: boolean }) {
+function TotalCell({ value, emphasis, variant }: { value: number; emphasis?: boolean; variant?: 'sales' | 'purchase' | 'diff' }) {
+  const color =
+    variant === 'purchase' ? 'text-orange-700' :
+    variant === 'diff' ? (value < 0 ? 'text-red-600' : value > 0 ? 'text-emerald-700' : 'text-slate-300') :
+    emphasis ? 'text-indigo-700' : 'text-slate-900';
+
   return (
     <td
-      className={`${TOTAL_COL} px-3 py-2.5 text-right text-sm whitespace-nowrap overflow-visible ${
-        emphasis ? 'font-semibold text-indigo-700' : 'font-medium text-slate-900'
+      className={`${TOTAL_COL} px-3 py-2.5 text-right text-sm whitespace-nowrap overflow-visible font-medium ${
+        emphasis ? 'font-semibold' : ''
+      } ${color}`}
+    >
+      {value === 0 ? '-' : fmtW(value)}
+    </td>
+  );
+}
+
+function DiffCell({ value, emphasis }: { value: number; emphasis?: boolean }) {
+  const color =
+    value < 0 ? 'text-red-600' :
+    value > 0 ? (emphasis ? 'text-emerald-800' : 'text-emerald-700') :
+    'text-slate-300';
+
+  return (
+    <td
+      className={`${MONTH_COL} px-2 py-2.5 text-right text-sm whitespace-nowrap overflow-visible ${color} ${
+        emphasis ? 'font-semibold' : ''
       }`}
     >
-      {value > 0 ? fmtW(value) : '-'}
+      {value === 0 ? '-' : fmtW(value)}
     </td>
   );
 }
 
 export function DashboardView() {
-  const { fetchYearlySales, aggregateMonthlySales } = useDashboard();
+  const { fetchYearlySales, fetchYearlyPurchases, aggregateMonthlySales } = useDashboard();
   const { partners, fetchPartners } = usePartners();
 
   const [year, setYear] = useState(currentYear);
@@ -84,15 +108,20 @@ export function DashboardView() {
   const [graphPartner, setGraphPartner] = useState<Partner | null>(null);
   const [tablePartnerQuery, setTablePartnerQuery] = useState('');
   const [showPartnerModal, setShowPartnerModal] = useState(false);
-  const [rawRows, setRawRows] = useState<Awaited<ReturnType<typeof fetchYearlySales>>['data']>([]);
+  const [rawSalesRows, setRawSalesRows] = useState<Awaited<ReturnType<typeof fetchYearlySales>>['data']>([]);
+  const [rawPurchaseRows, setRawPurchaseRows] = useState<Awaited<ReturnType<typeof fetchYearlyPurchases>>['data']>([]);
   const [loading, setLoading] = useState(true);
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const { data } = await fetchYearlySales(year);
-    setRawRows(data ?? []);
+    const [sales, purchases] = await Promise.all([
+      fetchYearlySales(year),
+      fetchYearlyPurchases(year),
+    ]);
+    setRawSalesRows(sales.data ?? []);
+    setRawPurchaseRows(purchases.data ?? []);
     setLoading(false);
-  }, [fetchYearlySales, year]);
+  }, [fetchYearlySales, fetchYearlyPurchases, year]);
 
   useEffect(() => {
     loadData();
@@ -103,26 +132,36 @@ export function DashboardView() {
   }, [fetchPartners]);
 
   const totalMonthlyData: MonthlySalesPoint[] = useMemo(() => {
-    if (!rawRows) return [];
-    return aggregateMonthlySales(rawRows, year);
-  }, [rawRows, year, aggregateMonthlySales]);
+    if (!rawSalesRows) return [];
+    return aggregateMonthlySales(rawSalesRows, year);
+  }, [rawSalesRows, year, aggregateMonthlySales]);
+
+  const totalPurchaseData: MonthlySalesPoint[] = useMemo(() => {
+    if (!rawPurchaseRows) return [];
+    return aggregateMonthlyPurchases(rawPurchaseRows, year);
+  }, [rawPurchaseRows, year]);
+
+  const netMonthlyData: MonthlySalesPoint[] = useMemo(
+    () => subtractMonthly(totalMonthlyData, totalPurchaseData),
+    [totalMonthlyData, totalPurchaseData],
+  );
 
   const graphMonthlyData: MonthlySalesPoint[] = useMemo(() => {
     if (salesTab === 'partner' && !graphPartner) {
       return aggregateMonthlySales([], year);
     }
-    if (!rawRows) return [];
+    if (!rawSalesRows) return [];
     return aggregateMonthlySales(
-      rawRows,
+      rawSalesRows,
       year,
       salesTab === 'partner' ? graphPartner!.id : undefined,
     );
-  }, [rawRows, year, salesTab, graphPartner, aggregateMonthlySales]);
+  }, [rawSalesRows, year, salesTab, graphPartner, aggregateMonthlySales]);
 
   const partnerMatrix = useMemo(() => {
-    if (!rawRows) return [];
-    return aggregatePartnerMatrix(rawRows, year, partners);
-  }, [rawRows, year, partners]);
+    if (!rawSalesRows) return [];
+    return aggregatePartnerMatrix(rawSalesRows, year, partners);
+  }, [rawSalesRows, year, partners]);
 
   const filteredPartnerMatrix = useMemo(() => {
     if (!tablePartnerQuery.trim()) return partnerMatrix;
@@ -132,20 +171,49 @@ export function DashboardView() {
     );
   }, [partnerMatrix, tablePartnerQuery]);
 
+  const yearSalesTotal = useMemo(
+    () => totalMonthlyData.reduce((s, m) => s + m.total_amount, 0),
+    [totalMonthlyData],
+  );
+
+  const yearPurchaseTotal = useMemo(
+    () => totalPurchaseData.reduce((s, m) => s + m.total_amount, 0),
+    [totalPurchaseData],
+  );
+
+  const yearNetTotal = yearSalesTotal - yearPurchaseTotal;
+
   const yearTotal = useMemo(() => {
-    if (viewMode === 'table' && salesTab === 'partner') {
-      return filteredPartnerMatrix.reduce((s, r) => s + r.total, 0);
-    }
-    if (viewMode === 'graph' && salesTab === 'partner') {
+    if (salesTab === 'partner') {
+      if (viewMode === 'table') {
+        return filteredPartnerMatrix.reduce((s, r) => s + r.total, 0);
+      }
       return graphMonthlyData.reduce((s, m) => s + m.total_amount, 0);
     }
-    return totalMonthlyData.reduce((s, m) => s + m.total_amount, 0);
-  }, [viewMode, salesTab, filteredPartnerMatrix, graphMonthlyData, totalMonthlyData]);
+    return yearSalesTotal;
+  }, [salesTab, viewMode, filteredPartnerMatrix, graphMonthlyData, yearSalesTotal]);
 
-  const chartPoints = useMemo(
-    () => graphMonthlyData.map(m => ({ label: m.label, value: m.total_amount })),
-    [graphMonthlyData],
-  );
+  const chartSeries = useMemo(() => {
+    if (salesTab === 'total') {
+      return [
+        {
+          label: '매출금액 (납품완료)',
+          color: '#4f46e5',
+          points: totalMonthlyData.map(m => ({ label: m.label, value: m.total_amount })),
+        },
+        {
+          label: '구매금액 (입고완료)',
+          color: '#ea580c',
+          points: totalPurchaseData.map(m => ({ label: m.label, value: m.total_amount })),
+        },
+      ];
+    }
+    return [{
+      label: '매출금액 (납품완료)',
+      color: '#4f46e5',
+      points: graphMonthlyData.map(m => ({ label: m.label, value: m.total_amount })),
+    }];
+  }, [salesTab, totalMonthlyData, totalPurchaseData, graphMonthlyData]);
 
   const monthTotals = useMemo(
     () => MONTH_LABELS.map((_, i) => filteredPartnerMatrix.reduce((s, r) => s + r.amounts[i], 0)),
@@ -154,7 +222,7 @@ export function DashboardView() {
 
   const graphSubtitle =
     salesTab === 'total'
-      ? `${year}년 전체 월별 합계 매출 (납품완료 기준)`
+      ? `${year}년 전체 월별 매출·구매 (납품완료 / 입고완료 기준)`
       : graphPartner
         ? `${year}년 ${graphPartner.name} 월별 합계 매출`
         : `${year}년 거래처를 선택해 주세요`;
@@ -189,13 +257,32 @@ export function DashboardView() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:col-span-1">
-          <div className="flex items-center gap-2 text-slate-500 text-xs mb-2">
-            <TrendingUp className="w-4 h-4 text-indigo-600" />
-            {year}년 합계 매출
+        {salesTab === 'total' ? (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:col-span-1 space-y-4">
+            <div>
+              <div className="flex items-center gap-2 text-slate-500 text-xs mb-1">
+                <TrendingUp className="w-4 h-4 text-indigo-600" />
+                {year}년 매출금액 (납품완료)
+              </div>
+              <p className="text-2xl font-bold text-indigo-700">{fmtW(yearSalesTotal)}</p>
+            </div>
+            <div>
+              <div className="flex items-center gap-2 text-slate-500 text-xs mb-1">
+                <ShoppingCart className="w-4 h-4 text-orange-600" />
+                {year}년 구매금액 (입고완료)
+              </div>
+              <p className="text-2xl font-bold text-orange-600">{fmtW(yearPurchaseTotal)}</p>
+            </div>
           </div>
-          <p className="text-2xl font-bold text-indigo-700">{fmtW(yearTotal)}</p>
-        </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:col-span-1">
+            <div className="flex items-center gap-2 text-slate-500 text-xs mb-2">
+              <TrendingUp className="w-4 h-4 text-indigo-600" />
+              {year}년 합계 매출
+            </div>
+            <p className="text-2xl font-bold text-indigo-700">{fmtW(yearTotal)}</p>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
@@ -272,7 +359,7 @@ export function DashboardView() {
                   거래처 검색 버튼을 눌러 매출을 조회할 거래처를 선택해 주세요
                 </div>
               ) : (
-                <MonthlySalesChart points={chartPoints} />
+                <MonthlySalesChart series={chartSeries} />
               )}
             </>
           ) : salesTab === 'total' ? (
@@ -294,13 +381,27 @@ export function DashboardView() {
                     <th className={`${TOTAL_COL} px-3 py-3 text-right font-semibold text-indigo-700`}>합계</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100">
                   <tr className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-medium text-slate-900">전체</td>
+                    <td className="px-4 py-3 font-medium text-indigo-900">매출금액 (납품완료)</td>
                     {totalMonthlyData.map(m => (
                       <MatrixCell key={m.month} value={m.total_amount} />
                     ))}
-                    <TotalCell value={yearTotal} emphasis />
+                    <TotalCell value={yearSalesTotal} emphasis variant="sales" />
+                  </tr>
+                  <tr className="hover:bg-slate-50">
+                    <td className="px-4 py-3 font-medium text-orange-700">구매금액 (입고완료)</td>
+                    {totalPurchaseData.map(m => (
+                      <MatrixCell key={m.month} value={m.total_amount} />
+                    ))}
+                    <TotalCell value={yearPurchaseTotal} emphasis variant="purchase" />
+                  </tr>
+                  <tr className="bg-emerald-50/60">
+                    <td className="px-4 py-3 font-semibold text-emerald-900">매출-구매</td>
+                    {netMonthlyData.map(m => (
+                      <DiffCell key={m.month} value={m.total_amount} emphasis />
+                    ))}
+                    <TotalCell value={yearNetTotal} emphasis variant="diff" />
                   </tr>
                 </tbody>
               </table>

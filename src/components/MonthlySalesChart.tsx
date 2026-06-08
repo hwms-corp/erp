@@ -6,9 +6,14 @@ export interface ChartPoint {
   value: number;
 }
 
-interface Props {
+export interface ChartSeries {
   points: ChartPoint[];
-  color?: string;
+  color: string;
+  label: string;
+}
+
+interface Props {
+  series: ChartSeries[];
 }
 
 const W = 640;
@@ -16,28 +21,33 @@ const H = 300;
 const PAD = { top: 28, right: 24, bottom: 36, left: 72 };
 
 function fmtAxis(n: number): string {
-  if (n >= 100_000_000) return `${(n / 100_000_000).toFixed(1)}억`;
-  if (n >= 10_000) return `${Math.round(n / 10_000)}만`;
+  const abs = Math.abs(n);
+  const sign = n < 0 ? '-' : '';
+  if (abs >= 100_000_000) return `${sign}${(abs / 100_000_000).toFixed(1)}억`;
+  if (abs >= 10_000) return `${sign}${Math.round(abs / 10_000)}만`;
   return fmt(n);
 }
 
-export function MonthlySalesChart({ points, color = '#4f46e5' }: Props) {
+export function MonthlySalesChart({ series }: Props) {
   const chart = useMemo(() => {
     const innerW = W - PAD.left - PAD.right;
     const innerH = H - PAD.top - PAD.bottom;
-    const maxVal = Math.max(...points.map(p => p.value), 1);
+    const allValues = series.flatMap(s => s.points.map(p => p.value));
+    const maxVal = Math.max(...allValues, 1);
     const yMax = maxVal * 1.1;
     const yTicks = 4;
 
-    const coords = points.map((p, i) => {
-      const x = PAD.left + (i / Math.max(points.length - 1, 1)) * innerW;
-      const y = PAD.top + innerH - (p.value / yMax) * innerH;
-      return { ...p, x, y };
+    const lineSeries = series.map(s => {
+      const coords = s.points.map((p, i) => {
+        const x = PAD.left + (i / Math.max(s.points.length - 1, 1)) * innerW;
+        const y = PAD.top + innerH - (p.value / yMax) * innerH;
+        return { ...p, x, y };
+      });
+      const linePath = coords
+        .map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x} ${c.y}`)
+        .join(' ');
+      return { ...s, coords, linePath };
     });
-
-    const linePath = coords
-      .map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x} ${c.y}`)
-      .join(' ');
 
     const yLabels = Array.from({ length: yTicks + 1 }, (_, i) => {
       const val = (yMax / yTicks) * (yTicks - i);
@@ -45,16 +55,28 @@ export function MonthlySalesChart({ points, color = '#4f46e5' }: Props) {
       return { val, y };
     });
 
-    return { coords, linePath, yLabels, innerW, innerH, yMax };
-  }, [points]);
+    return { lineSeries, yLabels, innerH };
+  }, [series]);
+
+  const monthLabels = series[0]?.points.map(p => p.label) ?? [];
 
   return (
     <div className="w-full overflow-x-auto">
+      {series.length > 1 && (
+        <div className="flex flex-wrap gap-4 mb-3 text-xs">
+          {series.map(s => (
+            <div key={s.label} className="flex items-center gap-1.5">
+              <span className="w-3 h-0.5 rounded-full" style={{ backgroundColor: s.color }} />
+              <span className="text-slate-600">{s.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="w-full min-w-[480px] h-auto"
         role="img"
-        aria-label="월별 매출 선형 차트"
+        aria-label="월별 매출·구매 선형 차트"
       >
         {chart.yLabels.map(({ val, y }) => (
           <g key={val}>
@@ -92,39 +114,51 @@ export function MonthlySalesChart({ points, color = '#4f46e5' }: Props) {
           stroke="#cbd5e1"
         />
 
-        <path
-          d={chart.linePath}
-          fill="none"
-          stroke={color}
-          strokeWidth={2.5}
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
+        {chart.lineSeries.map(s => (
+          <g key={s.label}>
+            <path
+              d={s.linePath}
+              fill="none"
+              stroke={s.color}
+              strokeWidth={2.5}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+            />
+            {s.coords.map(c => (
+              <g key={`${s.label}-${c.label}`}>
+                <circle cx={c.x} cy={c.y} r={5} fill="white" stroke={s.color} strokeWidth={2.5} />
+                <title>{`${s.label} ${c.label}: ${fmt(c.value)}원`}</title>
+                {c.value > 0 && (
+                  <text
+                    x={c.x}
+                    y={c.y - 10}
+                    textAnchor="middle"
+                    className="text-[9px] font-medium"
+                    fill={s.color}
+                  >
+                    {fmtAxis(c.value)}
+                  </text>
+                )}
+              </g>
+            ))}
+          </g>
+        ))}
 
-        {chart.coords.map(c => (
-          <g key={c.label}>
-            <circle cx={c.x} cy={c.y} r={5} fill="white" stroke={color} strokeWidth={2.5} />
-            <title>{`${c.label}: ${fmt(c.value)}원`}</title>
-            {c.value > 0 && (
-              <text
-                x={c.x}
-                y={c.y - 10}
-                textAnchor="middle"
-                className="fill-indigo-600 text-[9px] font-medium"
-              >
-                {fmtAxis(c.value)}
-              </text>
-            )}
+        {monthLabels.map((label, i) => {
+          const innerW = W - PAD.left - PAD.right;
+          const x = PAD.left + (i / Math.max(monthLabels.length - 1, 1)) * innerW;
+          return (
             <text
-              x={c.x}
+              key={label}
+              x={x}
               y={H - 10}
               textAnchor="middle"
               className="fill-slate-500 text-[10px]"
             >
-              {c.label}
+              {label}
             </text>
-          </g>
-        ))}
+          );
+        })}
       </svg>
     </div>
   );

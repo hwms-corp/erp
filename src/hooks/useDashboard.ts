@@ -8,6 +8,16 @@ export interface DeliveredOrderRow {
   total_amount: number;
 }
 
+export interface ReceivedPORow {
+  updated_at: string;
+  received_amount: number;
+}
+
+function isoToYm(iso: string): string {
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export interface MonthlySalesPoint {
   month: string;
   label: string;
@@ -40,6 +50,36 @@ export function aggregateMonthlySales(
     month: m,
     label: `${i + 1}월`,
     total_amount: map.get(m)!,
+  }));
+}
+
+export function aggregateMonthlyPurchases(
+  rows: ReceivedPORow[],
+  year: number,
+): MonthlySalesPoint[] {
+  const months = buildYearMonths(year);
+  const map = new Map(months.map(m => [m, 0]));
+
+  for (const row of rows) {
+    const ym = isoToYm(row.updated_at);
+    if (!map.has(ym)) continue;
+    map.set(ym, map.get(ym)! + Number(row.received_amount));
+  }
+
+  return months.map((m, i) => ({
+    month: m,
+    label: `${i + 1}월`,
+    total_amount: map.get(m)!,
+  }));
+}
+
+export function subtractMonthly(
+  sales: MonthlySalesPoint[],
+  purchases: MonthlySalesPoint[],
+): MonthlySalesPoint[] {
+  return sales.map((s, i) => ({
+    ...s,
+    total_amount: s.total_amount - purchases[i].total_amount,
   }));
 }
 
@@ -98,5 +138,16 @@ export function useDashboard() {
     return { data: data as DeliveredOrderRow[] | null, error };
   }, []);
 
-  return { fetchYearlySales, aggregateMonthlySales };
+  const fetchYearlyPurchases = useCallback(async (year: number) => {
+    const { data, error } = await supabase
+      .from('v_pos_with_detail')
+      .select('updated_at, received_amount')
+      .eq('status', 'received')
+      .gte('updated_at', `${year}-01-01T00:00:00`)
+      .lte('updated_at', `${year}-12-31T23:59:59`);
+
+    return { data: data as ReceivedPORow[] | null, error };
+  }, []);
+
+  return { fetchYearlySales, fetchYearlyPurchases, aggregateMonthlySales };
 }
