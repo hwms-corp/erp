@@ -33,6 +33,7 @@ export function Layout() {
   const role = user.role as RoleCode | null;
   const roleColor = role ? ROLE_COLORS[role] : { bg: 'bg-slate-50', text: 'text-slate-700' };
   const breadcrumb = getBreadcrumb(location.pathname);
+  const isDashboard = location.pathname === '/dashboard';
 
   return (
     <div className="flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
@@ -78,7 +79,7 @@ export function Layout() {
         </header>
 
         <div className="flex-1 overflow-y-auto p-3 sm:p-6">
-          <div className="max-w-7xl mx-auto">
+          <div className={`mx-auto w-full ${isDashboard ? 'max-w-[1800px]' : 'max-w-7xl'}`}>
             <Outlet />
           </div>
         </div>

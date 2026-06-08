@@ -18,6 +18,11 @@ type SalesTab = 'total' | 'partner';
 
 const currentYear = () => new Date().getFullYear();
 
+const MONTH_COL = 'w-[108px] min-w-[108px] max-w-[108px]';
+const TOTAL_COL = 'w-[140px] min-w-[140px] max-w-[140px]';
+const PARTNER_COL = 'w-[160px] min-w-[160px] max-w-[160px]';
+const CODE_COL = 'w-[100px] min-w-[100px] max-w-[100px]';
+
 function SalesSubTabs({ tab, onChange }: { tab: SalesTab; onChange: (t: SalesTab) => void }) {
   return (
     <div className="flex gap-1 p-1 bg-slate-100 rounded-xl w-fit">
@@ -43,9 +48,27 @@ function SalesSubTabs({ tab, onChange }: { tab: SalesTab; onChange: (t: SalesTab
   );
 }
 
-function MatrixCell({ value }: { value: number }) {
+function MatrixCell({ value, emphasis }: { value: number; emphasis?: boolean }) {
   return (
-    <td className={`px-3 py-2.5 text-right text-sm whitespace-nowrap ${value > 0 ? 'text-slate-900' : 'text-slate-300'}`}>
+    <td
+      className={`${MONTH_COL} px-2 py-2.5 text-right text-sm whitespace-nowrap overflow-visible ${
+        value > 0
+          ? emphasis ? 'text-indigo-800 font-semibold' : 'text-slate-900'
+          : 'text-slate-300'
+      }`}
+    >
+      {value > 0 ? fmtW(value) : '-'}
+    </td>
+  );
+}
+
+function TotalCell({ value, emphasis }: { value: number; emphasis?: boolean }) {
+  return (
+    <td
+      className={`${TOTAL_COL} px-3 py-2.5 text-right text-sm whitespace-nowrap overflow-visible ${
+        emphasis ? 'font-semibold text-indigo-700' : 'font-medium text-slate-900'
+      }`}
+    >
       {value > 0 ? fmtW(value) : '-'}
     </td>
   );
@@ -175,7 +198,7 @@ export function DashboardView() {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
         <div className="px-4 sm:px-6 pt-4 border-b border-slate-100 space-y-4">
           <div className="flex gap-1 p-1 bg-slate-200 rounded-xl w-fit">
             <button
@@ -254,38 +277,53 @@ export function DashboardView() {
             </>
           ) : salesTab === 'total' ? (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left whitespace-nowrap min-w-[720px]">
+              <table className="table-fixed text-sm text-left w-[1636px]">
+                <colgroup>
+                  <col className="w-[120px]" />
+                  {MONTH_LABELS.map(m => (
+                    <col key={m} className="w-[108px]" />
+                  ))}
+                  <col className="w-[140px]" />
+                </colgroup>
                 <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
                   <tr>
-                    <th className="px-4 py-3 sticky left-0 bg-slate-50 z-10">구분</th>
+                    <th className="px-4 py-3">구분</th>
                     {MONTH_LABELS.map(m => (
-                      <th key={m} className="px-3 py-3 text-right">{m}</th>
+                      <th key={m} className={`${MONTH_COL} px-2 py-3 text-right`}>{m}</th>
                     ))}
-                    <th className="px-4 py-3 text-right font-semibold text-indigo-700">합계</th>
+                    <th className={`${TOTAL_COL} px-3 py-3 text-right font-semibold text-indigo-700`}>합계</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-medium text-slate-900 sticky left-0 bg-white">전체</td>
+                    <td className="px-4 py-3 font-medium text-slate-900">전체</td>
                     {totalMonthlyData.map(m => (
                       <MatrixCell key={m.month} value={m.total_amount} />
                     ))}
-                    <td className="px-4 py-3 text-right font-semibold text-indigo-700">{fmtW(yearTotal)}</td>
+                    <TotalCell value={yearTotal} emphasis />
                   </tr>
                 </tbody>
               </table>
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left whitespace-nowrap min-w-[960px]">
+              <table className="table-fixed text-sm text-left w-[1696px]">
+                <colgroup>
+                  <col className="w-[160px]" />
+                  <col className="w-[100px]" />
+                  {MONTH_LABELS.map(m => (
+                    <col key={m} className="w-[108px]" />
+                  ))}
+                  <col className="w-[140px]" />
+                </colgroup>
                 <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
                   <tr>
-                    <th className="px-4 py-3 sticky left-0 bg-slate-50 z-10 min-w-[140px]">거래처</th>
-                    <th className="px-3 py-3 sticky left-[140px] bg-slate-50 z-10">코드</th>
+                    <th className={`${PARTNER_COL} px-4 py-3 sticky left-0 bg-slate-50 z-10`}>거래처</th>
+                    <th className={`${CODE_COL} px-3 py-3 sticky left-[160px] bg-slate-50 z-10`}>코드</th>
                     {MONTH_LABELS.map(m => (
-                      <th key={m} className="px-3 py-3 text-right">{m}</th>
+                      <th key={m} className={`${MONTH_COL} px-2 py-3 text-right`}>{m}</th>
                     ))}
-                    <th className="px-4 py-3 text-right font-semibold text-indigo-700">합계</th>
+                    <th className={`${TOTAL_COL} px-3 py-3 text-right font-semibold text-indigo-700`}>합계</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -298,28 +336,28 @@ export function DashboardView() {
                   ) : (
                     filteredPartnerMatrix.map(row => (
                       <tr key={row.partner_id} className="hover:bg-slate-50">
-                        <td className="px-4 py-2.5 font-medium text-slate-900 sticky left-0 bg-white">
+                        <td className={`${PARTNER_COL} px-4 py-2.5 font-medium text-slate-900 sticky left-0 bg-white truncate`}>
                           {row.partner_name}
                         </td>
-                        <td className="px-3 py-2.5 text-slate-500 sticky left-[140px] bg-white">{row.partner_code}</td>
+                        <td className={`${CODE_COL} px-3 py-2.5 text-slate-500 sticky left-[160px] bg-white`}>
+                          {row.partner_code}
+                        </td>
                         {row.amounts.map((amt, i) => (
                           <MatrixCell key={i} value={amt} />
                         ))}
-                        <td className="px-4 py-2.5 text-right font-medium text-slate-900">
-                          {row.total > 0 ? fmtW(row.total) : '-'}
-                        </td>
+                        <TotalCell value={row.total} />
                       </tr>
                     ))
                   )}
                   {filteredPartnerMatrix.length > 0 && (
-                    <tr className="bg-indigo-50/60 font-semibold border-t border-slate-200">
-                      <td className="px-4 py-3 text-indigo-900 sticky left-0 bg-indigo-50/60" colSpan={2}>합계</td>
+                    <tr className="bg-indigo-50/60 border-t border-slate-200">
+                      <td className={`${PARTNER_COL} px-4 py-3 text-indigo-900 font-semibold sticky left-0 bg-indigo-50/60`} colSpan={2}>
+                        합계
+                      </td>
                       {monthTotals.map((amt, i) => (
-                        <td key={i} className={`px-3 py-3 text-right text-sm ${amt > 0 ? 'text-indigo-800' : 'text-slate-300'}`}>
-                          {amt > 0 ? fmtW(amt) : '-'}
-                        </td>
+                        <MatrixCell key={i} value={amt} emphasis />
                       ))}
-                      <td className="px-4 py-3 text-right text-indigo-900">{fmtW(yearTotal)}</td>
+                      <TotalCell value={yearTotal} emphasis />
                     </tr>
                   )}
                 </tbody>
