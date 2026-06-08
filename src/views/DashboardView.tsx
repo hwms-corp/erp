@@ -7,6 +7,7 @@ import {
   useDashboard,
   MONTH_LABELS,
   aggregatePartnerMatrix,
+  aggregatePartnerPurchaseMatrix,
   aggregateMonthlyPurchases,
   subtractMonthly,
 } from '@/hooks/useDashboard';
@@ -24,6 +25,7 @@ const MONTH_COL = 'w-[108px] min-w-[108px] max-w-[108px]';
 const TOTAL_COL = 'w-[140px] min-w-[140px] max-w-[140px]';
 const PARTNER_COL = 'w-[160px] min-w-[160px] max-w-[160px]';
 const CODE_COL = 'w-[100px] min-w-[100px] max-w-[100px]';
+const ITEM_COL = 'w-[100px] min-w-[100px] max-w-[100px]';
 
 function SalesSubTabs({ tab, onChange }: { tab: SalesTab; onChange: (t: SalesTab) => void }) {
   return (
@@ -50,12 +52,20 @@ function SalesSubTabs({ tab, onChange }: { tab: SalesTab; onChange: (t: SalesTab
   );
 }
 
-function MatrixCell({ value, emphasis }: { value: number; emphasis?: boolean }) {
+function MatrixCell({
+  value,
+  emphasis,
+  variant,
+}: { value: number; emphasis?: boolean; variant?: 'sales' | 'purchase' }) {
   return (
     <td
       className={`${MONTH_COL} px-2 py-2.5 text-right text-sm whitespace-nowrap overflow-visible ${
         value > 0
-          ? emphasis ? 'text-indigo-800 font-semibold' : 'text-slate-900'
+          ? variant === 'sales'
+            ? emphasis ? 'text-[#84cc16] font-semibold' : 'text-[#84cc16]'
+            : variant === 'purchase'
+              ? emphasis ? 'text-[#ea580c] font-semibold' : 'text-[#ea580c]'
+              : emphasis ? 'text-indigo-800 font-semibold' : 'text-slate-900'
           : 'text-slate-300'
       }`}
     >
@@ -66,9 +76,9 @@ function MatrixCell({ value, emphasis }: { value: number; emphasis?: boolean }) 
 
 function TotalCell({ value, emphasis, variant }: { value: number; emphasis?: boolean; variant?: 'sales' | 'purchase' | 'diff' }) {
   const color =
-    variant === 'purchase' ? 'text-orange-700' :
-    variant === 'diff' ? (value < 0 ? 'text-red-600' : value > 0 ? 'text-blue-700' : 'text-slate-300') :
-    variant === 'sales' ? 'text-lime-700' :
+    variant === 'purchase' ? 'text-[#ea580c]' :
+    variant === 'diff' ? (value < 0 ? 'text-red-600' : value > 0 ? 'text-[#2563eb]' : 'text-slate-300') :
+    variant === 'sales' ? 'text-[#84cc16]' :
     emphasis ? 'text-indigo-700' : 'text-slate-900';
 
   return (
@@ -186,6 +196,133 @@ export function DashboardView() {
     );
   }, [partnerMatrix, tablePartnerQuery]);
 
+  const purchasePartnerMatrix = useMemo(() => {
+    if (!rawPurchaseRows) return [];
+    return aggregatePartnerPurchaseMatrix(rawPurchaseRows, year, partners);
+  }, [rawPurchaseRows, year, partners]);
+
+  const purchasePartnerMap = useMemo(
+    () => new Map(purchasePartnerMatrix.map(p => [p.partner_id, p] as const)),
+    [purchasePartnerMatrix],
+  );
+
+  const partnerTypeById = useMemo(
+    () => new Map(partners.map(p => [p.id, p.type] as const)),
+    [partners],
+  );
+
+  type PartnerTableRow = {
+    key: string;
+    partner_id: number;
+    partner_code: string;
+    partner_name: string;
+    rowType: 'sales' | 'purchase';
+    amounts: number[];
+    total: number;
+  };
+
+  const partnerTableRows = useMemo<PartnerTableRow[]>(() => {
+    const rows: PartnerTableRow[] = [];
+
+    for (const s of filteredPartnerMatrix) {
+      const purchase = purchasePartnerMap.get(s.partner_id);
+      const salesTotal = s.total;
+      const purchaseTotal = purchase?.total ?? 0;
+
+      const hasSalesValue = salesTotal > 0;
+      const hasPurchaseValue = purchaseTotal > 0;
+
+      if (hasSalesValue && hasPurchaseValue) {
+        rows.push({
+          key: `${s.partner_id}-sales`,
+          partner_id: s.partner_id,
+          partner_code: s.partner_code,
+          partner_name: s.partner_name,
+          rowType: 'sales',
+          amounts: s.amounts,
+          total: salesTotal,
+        });
+        rows.push({
+          key: `${s.partner_id}-purchase`,
+          partner_id: s.partner_id,
+          partner_code: s.partner_code,
+          partner_name: s.partner_name,
+          rowType: 'purchase',
+          amounts: purchase?.amounts ?? new Array(12).fill(0),
+          total: purchaseTotal,
+        });
+        continue;
+      }
+
+      if (hasSalesValue) {
+        rows.push({
+          key: `${s.partner_id}-sales`,
+          partner_id: s.partner_id,
+          partner_code: s.partner_code,
+          partner_name: s.partner_name,
+          rowType: 'sales',
+          amounts: s.amounts,
+          total: salesTotal,
+        });
+        continue;
+      }
+
+      if (hasPurchaseValue) {
+        rows.push({
+          key: `${s.partner_id}-purchase`,
+          partner_id: s.partner_id,
+          partner_code: s.partner_code,
+          partner_name: s.partner_name,
+          rowType: 'purchase',
+          amounts: purchase?.amounts ?? new Array(12).fill(0),
+          total: purchaseTotal,
+        });
+        continue;
+      }
+
+      // (매출/구매 모두 0)일 때는 거래처 타입으로 한 줄만 보여줍니다.
+      const type = partnerTypeById.get(s.partner_id);
+      if (type === 'purchasing' || type === 'both') {
+        rows.push({
+          key: `${s.partner_id}-purchase`,
+          partner_id: s.partner_id,
+          partner_code: s.partner_code,
+          partner_name: s.partner_name,
+          rowType: 'purchase',
+          amounts: purchase?.amounts ?? new Array(12).fill(0),
+          total: 0,
+        });
+      } else {
+        rows.push({
+          key: `${s.partner_id}-sales`,
+          partner_id: s.partner_id,
+          partner_code: s.partner_code,
+          partner_name: s.partner_name,
+          rowType: 'sales',
+          amounts: s.amounts,
+          total: 0,
+        });
+      }
+    }
+
+    return rows.sort((a, b) => {
+      if (a.rowType !== b.rowType) {
+        return a.rowType === 'sales' ? -1 : 1;
+      }
+      return a.partner_code.localeCompare(b.partner_code) || a.partner_name.localeCompare(b.partner_name);
+    });
+  }, [filteredPartnerMatrix, purchasePartnerMap, partnerTypeById]);
+
+  const salesTableRows = useMemo(
+    () => partnerTableRows.filter(r => r.rowType === 'sales'),
+    [partnerTableRows],
+  );
+
+  const purchaseTableRows = useMemo(
+    () => partnerTableRows.filter(r => r.rowType === 'purchase'),
+    [partnerTableRows],
+  );
+
   const yearSalesTotal = useMemo(
     () => totalMonthlyData.reduce((s, m) => s + m.total_amount, 0),
     [totalMonthlyData],
@@ -235,10 +372,45 @@ export function DashboardView() {
     }];
   }, [salesTab, totalMonthlyData, totalPurchaseData, netMonthlyData, graphMonthlyData]);
 
-  const monthTotals = useMemo(
-    () => MONTH_LABELS.map((_, i) => filteredPartnerMatrix.reduce((s, r) => s + r.amounts[i], 0)),
+  const salesMonthTotals = useMemo(
+    () =>
+      MONTH_LABELS.map((_, i) =>
+        filteredPartnerMatrix.reduce((s, r) => s + r.amounts[i], 0),
+      ),
     [filteredPartnerMatrix],
   );
+
+  const purchaseMonthTotals = useMemo(
+    () =>
+      MONTH_LABELS.map((_, i) =>
+        filteredPartnerMatrix.reduce((s, r) => {
+          const p = purchasePartnerMap.get(r.partner_id);
+          return s + (p?.amounts[i] ?? 0);
+        }, 0),
+      ),
+    [filteredPartnerMatrix, purchasePartnerMap],
+  );
+
+  const salesYearTotalPartner = useMemo(
+    () => filteredPartnerMatrix.reduce((s, r) => s + r.total, 0),
+    [filteredPartnerMatrix],
+  );
+
+  const purchaseYearTotalPartner = useMemo(
+    () =>
+      filteredPartnerMatrix.reduce((s, r) => {
+        const p = purchasePartnerMap.get(r.partner_id);
+        return s + (p?.total ?? 0);
+      }, 0),
+    [filteredPartnerMatrix, purchasePartnerMap],
+  );
+
+  const netMonthTotalsPartner = useMemo(
+    () => salesMonthTotals.map((amt, i) => amt - purchaseMonthTotals[i]),
+    [salesMonthTotals, purchaseMonthTotals],
+  );
+
+  const netYearTotalPartner = salesYearTotalPartner - purchaseYearTotalPartner;
 
   const graphSubtitle =
     salesTab === 'total'
@@ -428,9 +600,10 @@ export function DashboardView() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="table-fixed text-sm text-left w-[1696px]">
+              <table className="table-fixed text-sm text-left w-[1800px]">
                 <colgroup>
                   <col className="w-[160px]" />
+                  <col className="w-[100px]" />
                   <col className="w-[100px]" />
                   {MONTH_LABELS.map(m => (
                     <col key={m} className="w-[108px]" />
@@ -441,6 +614,7 @@ export function DashboardView() {
                   <tr>
                     <th className={`${PARTNER_COL} px-4 py-3 sticky left-0 bg-slate-50 z-10`}>거래처</th>
                     <th className={`${CODE_COL} px-3 py-3 sticky left-[160px] bg-slate-50 z-10`}>코드</th>
+                    <th className={`${ITEM_COL} px-2 py-3 text-center`}>구분</th>
                     {MONTH_LABELS.map(m => (
                       <th key={m} className={`${MONTH_COL} px-2 py-3 text-right`}>{m}</th>
                     ))}
@@ -450,36 +624,94 @@ export function DashboardView() {
                 <tbody className="divide-y divide-slate-100">
                   {filteredPartnerMatrix.length === 0 ? (
                     <tr>
-                      <td colSpan={15} className="px-4 py-12 text-center text-slate-400">
+                      <td colSpan={16} className="px-4 py-12 text-center text-slate-400">
                         검색 결과가 없습니다
                       </td>
                     </tr>
                   ) : (
-                    filteredPartnerMatrix.map(row => (
-                      <tr key={row.partner_id} className="hover:bg-slate-50">
-                        <td className={`${PARTNER_COL} px-4 py-2.5 font-medium text-slate-900 sticky left-0 bg-white truncate`}>
-                          {row.partner_name}
-                        </td>
-                        <td className={`${CODE_COL} px-3 py-2.5 text-slate-500 sticky left-[160px] bg-white`}>
-                          {row.partner_code}
-                        </td>
-                        {row.amounts.map((amt, i) => (
-                          <MatrixCell key={i} value={amt} />
-                        ))}
-                        <TotalCell value={row.total} />
-                      </tr>
-                    ))
-                  )}
-                  {filteredPartnerMatrix.length > 0 && (
-                    <tr className="bg-indigo-50/60 border-t border-slate-200">
-                      <td className={`${PARTNER_COL} px-4 py-3 text-indigo-900 font-semibold sticky left-0 bg-indigo-50/60`} colSpan={2}>
-                        합계
-                      </td>
-                      {monthTotals.map((amt, i) => (
-                        <MatrixCell key={i} value={amt} emphasis />
+                    <>
+                      {salesTableRows.map(row => (
+                        <tr key={row.key} className="hover:bg-slate-50">
+                          <td className={`${PARTNER_COL} px-4 py-2.5 font-medium text-slate-900 sticky left-0 bg-white truncate`}>
+                            {row.partner_name}
+                          </td>
+                          <td className={`${CODE_COL} px-3 py-2.5 text-slate-500 sticky left-[160px] bg-white`}>
+                            {row.partner_code}
+                          </td>
+                          <td className={`${ITEM_COL} px-2 py-2.5 text-center text-sm font-semibold whitespace-nowrap text-[#84cc16]`}>
+                            영업
+                          </td>
+                          {row.amounts.map((amt, i) => (
+                            <MatrixCell key={i} value={amt} variant="sales" emphasis />
+                          ))}
+                          <TotalCell value={row.total} variant="sales" emphasis />
+                        </tr>
                       ))}
-                      <TotalCell value={yearTotal} emphasis />
-                    </tr>
+
+                      {salesTableRows.length > 0 && (
+                        <tr className="bg-lime-50/60 border-t border-slate-200">
+                          <td className={`${PARTNER_COL} px-4 py-3 text-[#84cc16] font-semibold sticky left-0 bg-lime-50/60`}>
+                            합계
+                          </td>
+                          <td className={`${CODE_COL} px-3 py-3 sticky left-[160px] bg-lime-50/60`} />
+                          <td className={`${ITEM_COL} px-2 py-3 text-center text-sm font-semibold text-[#84cc16]`}>
+                            영업
+                          </td>
+                          {salesMonthTotals.map((amt, i) => (
+                            <MatrixCell key={i} value={amt} variant="sales" emphasis />
+                          ))}
+                          <TotalCell value={salesYearTotalPartner} variant="sales" emphasis />
+                        </tr>
+                      )}
+
+                      {purchaseTableRows.map(row => (
+                        <tr key={row.key} className="hover:bg-slate-50">
+                          <td className={`${PARTNER_COL} px-4 py-2.5 font-medium text-slate-900 sticky left-0 bg-white truncate`}>
+                            {row.partner_name}
+                          </td>
+                          <td className={`${CODE_COL} px-3 py-2.5 text-slate-500 sticky left-[160px] bg-white`}>
+                            {row.partner_code}
+                          </td>
+                          <td className={`${ITEM_COL} px-2 py-2.5 text-center text-sm font-semibold whitespace-nowrap text-[#ea580c]`}>
+                            구매
+                          </td>
+                          {row.amounts.map((amt, i) => (
+                            <MatrixCell key={i} value={amt} variant="purchase" emphasis />
+                          ))}
+                          <TotalCell value={row.total} variant="purchase" emphasis />
+                        </tr>
+                      ))}
+
+                      {purchaseTableRows.length > 0 && (
+                        <tr className="bg-orange-50/60 border-t border-slate-200">
+                          <td className={`${PARTNER_COL} px-4 py-3 text-[#ea580c] font-semibold sticky left-0 bg-orange-50/60`}>
+                            합계
+                          </td>
+                          <td className={`${CODE_COL} px-3 py-3 sticky left-[160px] bg-orange-50/60`} />
+                          <td className={`${ITEM_COL} px-2 py-3 text-center text-sm font-semibold text-[#ea580c]`}>
+                            구매
+                          </td>
+                          {purchaseMonthTotals.map((amt, i) => (
+                            <MatrixCell key={i} value={amt} variant="purchase" emphasis />
+                          ))}
+                          <TotalCell value={purchaseYearTotalPartner} variant="purchase" emphasis />
+                        </tr>
+                      )}
+
+                      <tr className="bg-blue-50/60 border-t border-slate-200">
+                        <td className={`${PARTNER_COL} px-4 py-3 text-[#2563eb] font-semibold sticky left-0 bg-blue-50/60`}>
+                          합계
+                        </td>
+                        <td className={`${CODE_COL} px-3 py-3 sticky left-[160px] bg-blue-50/60`} />
+                        <td className={`${ITEM_COL} px-2 py-3 text-center text-sm font-semibold text-[#2563eb] whitespace-nowrap`}>
+                          영업-구매
+                        </td>
+                        {netMonthTotalsPartner.map((amt, i) => (
+                          <DiffCell key={i} value={amt} emphasis />
+                        ))}
+                        <TotalCell value={netYearTotalPartner} variant="diff" emphasis />
+                      </tr>
+                    </>
                   )}
                 </tbody>
               </table>

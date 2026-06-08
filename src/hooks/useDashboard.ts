@@ -9,6 +9,7 @@ export interface DeliveredOrderRow {
 }
 
 export interface ReceivedPORow {
+  partner_id: number;
   updated_at: string;
   received_amount: number;
 }
@@ -123,6 +124,39 @@ export function aggregatePartnerMatrix(
   });
 }
 
+export function aggregatePartnerPurchaseMatrix(
+  rows: ReceivedPORow[],
+  year: number,
+  partners: Partner[],
+): PartnerMonthlyRow[] {
+  const months = buildYearMonths(year);
+  const amountMap = new Map<number, number[]>();
+
+  for (const row of rows) {
+    if (!row.updated_at) continue;
+    const ym = isoToYm(row.updated_at);
+    const idx = months.indexOf(ym);
+    if (idx < 0) continue;
+
+    if (!amountMap.has(row.partner_id)) {
+      amountMap.set(row.partner_id, new Array(12).fill(0));
+    }
+    const arr = amountMap.get(row.partner_id)!;
+    arr[idx] += Number(row.received_amount);
+  }
+
+  return partners.map(p => {
+    const amounts = [...(amountMap.get(p.id) ?? new Array(12).fill(0))];
+    return {
+      partner_id: p.id,
+      partner_code: p.code,
+      partner_name: p.name,
+      amounts,
+      total: amounts.reduce((s, v) => s + v, 0),
+    };
+  });
+}
+
 export const MONTH_LABELS = Array.from({ length: 12 }, (_, i) => `${i + 1}월`);
 
 export function useDashboard() {
@@ -141,7 +175,7 @@ export function useDashboard() {
   const fetchYearlyPurchases = useCallback(async (year: number) => {
     const { data, error } = await supabase
       .from('v_pos_with_detail')
-      .select('updated_at, received_amount')
+      .select('partner_id, updated_at, received_amount')
       .eq('status', 'received')
       .gte('updated_at', `${year}-01-01T00:00:00`)
       .lte('updated_at', `${year}-12-31T23:59:59`);
