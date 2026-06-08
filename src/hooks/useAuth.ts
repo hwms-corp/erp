@@ -85,10 +85,10 @@ export function useAuthProvider(): AuthContextValue {
 export function hasAccess(role: RoleCode | null | undefined, path: string): boolean {
   if (!role) return false;
   const accessMap: Record<string, string[]> = {
-    admin: ['/partners', '/orders', '/confirmed', '/pos', '/receiving', '/delivery'],
-    sales: ['/partners', '/orders', '/confirmed', '/delivery'],
-    purchasing: ['/partners', '/pos', '/receiving'],
-    support: ['/partners', '/orders', '/confirmed', '/pos', '/receiving', '/delivery'],
+    admin: ['/dashboard', '/partners', '/orders', '/confirmed', '/pos', '/receiving', '/delivery'],
+    sales: ['/dashboard', '/partners', '/orders', '/confirmed', '/delivery'],
+    purchasing: ['/dashboard', '/partners', '/pos', '/receiving'],
+    support: ['/dashboard', '/partners', '/orders', '/confirmed', '/pos', '/receiving', '/delivery'],
   };
   const allowed = accessMap[role];
   return allowed?.some(p => path.startsWith(p)) ?? false;

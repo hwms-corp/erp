@@ -218,13 +218,13 @@ export function statusLabel(status: string): string {
 // ─── Role-based access ────────────────────────────────────────
 
 export type ViewPath =
-  | '/partners' | '/orders' | '/confirmed' | '/pos' | '/receiving' | '/delivery';
+  | '/dashboard' | '/partners' | '/orders' | '/confirmed' | '/pos' | '/receiving' | '/delivery';
 
 export const ROLE_ACCESS: Record<RoleCode, ViewPath[]> = {
-  admin: ['/partners', '/orders', '/confirmed', '/pos', '/receiving', '/delivery'],
-  sales: ['/partners', '/orders', '/confirmed', '/delivery'],
-  purchasing: ['/partners', '/pos', '/receiving'],
-  support: ['/partners', '/orders', '/confirmed', '/pos', '/receiving', '/delivery'],
+  admin: ['/dashboard', '/partners', '/orders', '/confirmed', '/pos', '/receiving', '/delivery'],
+  sales: ['/dashboard', '/partners', '/orders', '/confirmed', '/delivery'],
+  purchasing: ['/dashboard', '/partners', '/pos', '/receiving'],
+  support: ['/dashboard', '/partners', '/orders', '/confirmed', '/pos', '/receiving', '/delivery'],
 };
 
 export const ROLE_COLORS: Record<RoleCode, { bg: string; text: string }> = {

@@ -7,6 +7,7 @@ import type { RoleCode } from '@/types';
 import { ROLE_LABELS, ROLE_COLORS } from '@/types';
 
 const BREADCRUMBS: Record<string, string> = {
+  '/dashboard': '대시보드',
   '/partners': '거래처 관리',
   '/orders': '견적서 관리',
   '/confirmed': '수주 관리',

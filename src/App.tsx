@@ -14,6 +14,7 @@ import { POPreviewView } from '@/views/POPreviewView';
 import { POSearchView } from '@/views/POSearchView';
 import { ReceivingView } from '@/views/ReceivingView';
 import { DeliveryView } from '@/views/DeliveryView';
+import { DashboardView } from '@/views/DashboardView';
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuthProvider();
@@ -40,9 +41,11 @@ export default function App() {
     <AuthContext.Provider value={auth}>
       <BrowserRouter>
         <Routes>
-          <Route path="/login" element={auth.user ? <Navigate to="/orders" replace /> : <LoginView />} />
+          <Route path="/login" element={auth.user ? <Navigate to="/dashboard" replace /> : <LoginView />} />
 
           <Route element={<AuthGate><Layout /></AuthGate>}>
+            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<DashboardView />} />
             <Route path="/partners" element={<PartnerListView />} />
             <Route path="/partners/:code" element={<PartnerDetailView />} />
 
@@ -63,7 +66,7 @@ export default function App() {
             <Route path="/delivery" element={<DeliveryView />} />
           </Route>
 
-          <Route path="*" element={<Navigate to="/orders" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthContext.Provider>

@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   FileText, ShoppingCart, ArrowDownRight, Building2,
-  CheckCircle2, Truck, User, LogOut, X,
+  CheckCircle2, Truck, User, LogOut, X, LayoutDashboard,
 } from 'lucide-react';
 import type { RoleCode } from '@/types';
 import { ROLE_LABELS, ROLE_COLORS, ROLE_ACCESS } from '@/types';
@@ -21,7 +21,10 @@ interface NavGroup {
 const allNavGroups: NavGroup[] = [
   {
     group: '공통',
-    items: [{ path: '/partners', label: '거래처 관리', icon: Building2 }],
+    items: [
+      { path: '/dashboard', label: '대시보드', icon: LayoutDashboard },
+      { path: '/partners', label: '거래처 관리', icon: Building2 },
+    ],
   },
   {
     group: '영업',

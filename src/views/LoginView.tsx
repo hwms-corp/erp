@@ -26,7 +26,7 @@ export function LoginView() {
     if (err) {
       setError(err);
     } else {
-      navigate('/orders');
+      navigate('/dashboard');
     }
   };
 
