@@ -41,10 +41,10 @@ export default function App() {
     <AuthContext.Provider value={auth}>
       <BrowserRouter>
         <Routes>
-          <Route path="/login" element={auth.user ? <Navigate to="/dashboard" replace /> : <LoginView />} />
+          <Route path="/login" element={auth.user ? <Navigate to="/partners" replace /> : <LoginView />} />
 
           <Route element={<AuthGate><Layout /></AuthGate>}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route index element={<Navigate to="/partners" replace />} />
             <Route path="/dashboard" element={<DashboardView />} />
             <Route path="/partners" element={<PartnerListView />} />
             <Route path="/partners/:code" element={<PartnerDetailView />} />
@@ -66,7 +66,7 @@ export default function App() {
             <Route path="/delivery" element={<DeliveryView />} />
           </Route>
 
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/partners" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthContext.Provider>

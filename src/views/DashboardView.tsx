@@ -22,7 +22,8 @@ type SalesTab = 'total' | 'partner';
 const currentYear = () => new Date().getFullYear();
 
 const MONTH_COL = 'w-[108px] min-w-[108px] max-w-[108px]';
-const TOTAL_COL = 'w-[140px] min-w-[140px] max-w-[140px]';
+const TOTAL_COL = 'w-[160px] min-w-[160px] max-w-[160px]';
+const PARTNER_TABLE_WIDTH = 'w-[1840px]';
 const PARTNER_COL = 'w-[160px] min-w-[160px] max-w-[160px]';
 const CODE_COL = 'w-[100px] min-w-[100px] max-w-[100px]';
 const ITEM_COL = 'w-[100px] min-w-[100px] max-w-[100px]';
@@ -171,17 +172,15 @@ export function DashboardView() {
     [totalMonthlyData, totalPurchaseData],
   );
 
-  const graphMonthlyData: MonthlySalesPoint[] = useMemo(() => {
-    if (salesTab === 'partner' && !graphPartner) {
-      return aggregateMonthlySales([], year);
-    }
-    if (!rawSalesRows) return [];
-    return aggregateMonthlySales(
-      rawSalesRows,
-      year,
-      salesTab === 'partner' ? graphPartner!.id : undefined,
-    );
-  }, [rawSalesRows, year, salesTab, graphPartner, aggregateMonthlySales]);
+  const graphPartnerSalesData: MonthlySalesPoint[] = useMemo(() => {
+    if (!graphPartner || !rawSalesRows) return aggregateMonthlySales([], year);
+    return aggregateMonthlySales(rawSalesRows, year, graphPartner.id);
+  }, [rawSalesRows, year, graphPartner, aggregateMonthlySales]);
+
+  const graphPartnerPurchaseData: MonthlySalesPoint[] = useMemo(() => {
+    if (!graphPartner || !rawPurchaseRows) return aggregateMonthlyPurchases([], year);
+    return aggregateMonthlyPurchases(rawPurchaseRows, year, graphPartner.id);
+  }, [rawPurchaseRows, year, graphPartner]);
 
   const partnerMatrix = useMemo(() => {
     if (!rawSalesRows) return [];
@@ -335,15 +334,25 @@ export function DashboardView() {
 
   const yearNetTotal = yearSalesTotal - yearPurchaseTotal;
 
+  const graphPartnerSalesTotal = useMemo(
+    () => graphPartnerSalesData.reduce((s, m) => s + m.total_amount, 0),
+    [graphPartnerSalesData],
+  );
+
+  const graphPartnerPurchaseTotal = useMemo(
+    () => graphPartnerPurchaseData.reduce((s, m) => s + m.total_amount, 0),
+    [graphPartnerPurchaseData],
+  );
+
   const yearTotal = useMemo(() => {
     if (salesTab === 'partner') {
       if (viewMode === 'table') {
         return filteredPartnerMatrix.reduce((s, r) => s + r.total, 0);
       }
-      return graphMonthlyData.reduce((s, m) => s + m.total_amount, 0);
+      return graphPartnerSalesTotal;
     }
     return yearSalesTotal;
-  }, [salesTab, viewMode, filteredPartnerMatrix, graphMonthlyData, yearSalesTotal]);
+  }, [salesTab, viewMode, filteredPartnerMatrix, graphPartnerSalesTotal, yearSalesTotal]);
 
   const chartSeries = useMemo(() => {
     if (salesTab === 'total') {
@@ -365,12 +374,64 @@ export function DashboardView() {
         },
       ];
     }
-    return [{
-      label: '매출금액 (납품완료)',
-      color: '#84cc16',
-      points: graphMonthlyData.map(m => ({ label: m.label, value: m.total_amount })),
-    }];
-  }, [salesTab, totalMonthlyData, totalPurchaseData, netMonthlyData, graphMonthlyData]);
+
+    if (!graphPartner) return [];
+
+    const hasSales = graphPartnerSalesTotal > 0;
+    const hasPurchase = graphPartnerPurchaseTotal > 0;
+    const series: { label: string; color: string; points: { label: string; value: number }[] }[] = [];
+
+    if (hasSales && hasPurchase) {
+      series.push(
+        {
+          label: '영업금액 (납품완료)',
+          color: '#84cc16',
+          points: graphPartnerSalesData.map(m => ({ label: m.label, value: m.total_amount })),
+        },
+        {
+          label: '구매금액 (입고완료)',
+          color: '#ea580c',
+          points: graphPartnerPurchaseData.map(m => ({ label: m.label, value: m.total_amount })),
+        },
+      );
+    } else if (hasSales) {
+      series.push({
+        label: '영업금액 (납품완료)',
+        color: '#84cc16',
+        points: graphPartnerSalesData.map(m => ({ label: m.label, value: m.total_amount })),
+      });
+    } else if (hasPurchase) {
+      series.push({
+        label: '구매금액 (입고완료)',
+        color: '#ea580c',
+        points: graphPartnerPurchaseData.map(m => ({ label: m.label, value: m.total_amount })),
+      });
+    } else if (graphPartner.type === 'purchasing' || graphPartner.type === 'both') {
+      series.push({
+        label: '구매금액 (입고완료)',
+        color: '#ea580c',
+        points: graphPartnerPurchaseData.map(m => ({ label: m.label, value: m.total_amount })),
+      });
+    } else {
+      series.push({
+        label: '영업금액 (납품완료)',
+        color: '#84cc16',
+        points: graphPartnerSalesData.map(m => ({ label: m.label, value: m.total_amount })),
+      });
+    }
+
+    return series;
+  }, [
+    salesTab,
+    totalMonthlyData,
+    totalPurchaseData,
+    netMonthlyData,
+    graphPartner,
+    graphPartnerSalesData,
+    graphPartnerPurchaseData,
+    graphPartnerSalesTotal,
+    graphPartnerPurchaseTotal,
+  ]);
 
   const salesMonthTotals = useMemo(
     () =>
@@ -416,7 +477,7 @@ export function DashboardView() {
     salesTab === 'total'
       ? `${year}년 전체 월별 매출·구매·차액 (납품완료 / 입고완료 기준)`
       : graphPartner
-        ? `${year}년 ${graphPartner.name} 월별 합계 매출`
+        ? `${year}년 ${graphPartner.name} 월별 영업·구매 금액`
         : `${year}년 거래처를 선택해 주세요`;
 
   return (
@@ -538,7 +599,13 @@ export function DashboardView() {
           )}
         </div>
 
-        <div className="px-4 sm:px-6 py-5">
+        <div
+          className={
+            viewMode === 'table' && salesTab === 'partner'
+              ? 'px-2 sm:px-3 py-5'
+              : 'px-4 sm:px-6 py-5'
+          }
+        >
           {loading ? (
             <div className="flex items-center justify-center h-64">
               <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
@@ -556,13 +623,13 @@ export function DashboardView() {
             </>
           ) : salesTab === 'total' ? (
             <div className="overflow-x-auto">
-              <table className="table-fixed text-sm text-left w-[1636px]">
+              <table className="table-fixed text-sm text-left w-[1656px]">
                 <colgroup>
                   <col className="w-[120px]" />
                   {MONTH_LABELS.map(m => (
                     <col key={m} className="w-[108px]" />
                   ))}
-                  <col className="w-[140px]" />
+                  <col className="w-[160px]" />
                 </colgroup>
                 <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
                   <tr>
@@ -599,8 +666,8 @@ export function DashboardView() {
               </table>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="table-fixed text-sm text-left w-[1800px]">
+            <div className="overflow-x-auto -mx-1">
+              <table className={`table-fixed text-sm text-left ${PARTNER_TABLE_WIDTH}`}>
                 <colgroup>
                   <col className="w-[160px]" />
                   <col className="w-[100px]" />
@@ -608,7 +675,7 @@ export function DashboardView() {
                   {MONTH_LABELS.map(m => (
                     <col key={m} className="w-[108px]" />
                   ))}
-                  <col className="w-[140px]" />
+                  <col className="w-[160px]" />
                 </colgroup>
                 <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
                   <tr>

@@ -78,8 +78,8 @@ export function Layout() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto p-3 sm:p-6">
-          <div className={`mx-auto w-full ${isDashboard ? 'max-w-[1800px]' : 'max-w-7xl'}`}>
+        <div className={`flex-1 overflow-y-auto ${isDashboard ? 'p-2 sm:p-3' : 'p-3 sm:p-6'}`}>
+          <div className={`mx-auto w-full ${isDashboard ? 'max-w-none' : 'max-w-7xl'}`}>
             <Outlet />
           </div>
         </div>

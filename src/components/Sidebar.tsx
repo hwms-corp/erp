@@ -22,8 +22,8 @@ const allNavGroups: NavGroup[] = [
   {
     group: '공통',
     items: [
-      { path: '/dashboard', label: '대시보드', icon: LayoutDashboard },
       { path: '/partners', label: '거래처 관리', icon: Building2 },
+      { path: '/dashboard', label: '대시보드', icon: LayoutDashboard },
     ],
   },
   {

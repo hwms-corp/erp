@@ -57,11 +57,13 @@ export function aggregateMonthlySales(
 export function aggregateMonthlyPurchases(
   rows: ReceivedPORow[],
   year: number,
+  partnerId?: number,
 ): MonthlySalesPoint[] {
   const months = buildYearMonths(year);
   const map = new Map(months.map(m => [m, 0]));
 
   for (const row of rows) {
+    if (partnerId !== undefined && row.partner_id !== partnerId) continue;
     const ym = isoToYm(row.updated_at);
     if (!map.has(ym)) continue;
     map.set(ym, map.get(ym)! + Number(row.received_amount));
