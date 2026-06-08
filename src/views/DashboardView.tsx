@@ -67,7 +67,8 @@ function MatrixCell({ value, emphasis }: { value: number; emphasis?: boolean }) 
 function TotalCell({ value, emphasis, variant }: { value: number; emphasis?: boolean; variant?: 'sales' | 'purchase' | 'diff' }) {
   const color =
     variant === 'purchase' ? 'text-orange-700' :
-    variant === 'diff' ? (value < 0 ? 'text-red-600' : value > 0 ? 'text-emerald-700' : 'text-slate-300') :
+    variant === 'diff' ? (value < 0 ? 'text-red-600' : value > 0 ? 'text-blue-700' : 'text-slate-300') :
+    variant === 'sales' ? 'text-lime-700' :
     emphasis ? 'text-indigo-700' : 'text-slate-900';
 
   return (
@@ -81,10 +82,24 @@ function TotalCell({ value, emphasis, variant }: { value: number; emphasis?: boo
   );
 }
 
+function TableRowLabel({ title, sub, className }: { title: string; sub?: string; className?: string }) {
+  return (
+    <td className={`px-4 py-3 font-medium leading-snug ${className ?? ''}`}>
+      {title}
+      {sub && (
+        <>
+          <br />
+          <span className="text-xs font-normal">({sub})</span>
+        </>
+      )}
+    </td>
+  );
+}
+
 function DiffCell({ value, emphasis }: { value: number; emphasis?: boolean }) {
   const color =
     value < 0 ? 'text-red-600' :
-    value > 0 ? (emphasis ? 'text-emerald-800' : 'text-emerald-700') :
+    value > 0 ? (emphasis ? 'text-blue-800' : 'text-blue-700') :
     'text-slate-300';
 
   return (
@@ -198,7 +213,7 @@ export function DashboardView() {
       return [
         {
           label: '매출금액 (납품완료)',
-          color: '#4f46e5',
+          color: '#84cc16',
           points: totalMonthlyData.map(m => ({ label: m.label, value: m.total_amount })),
         },
         {
@@ -206,14 +221,19 @@ export function DashboardView() {
           color: '#ea580c',
           points: totalPurchaseData.map(m => ({ label: m.label, value: m.total_amount })),
         },
+        {
+          label: '매출-구매',
+          color: '#2563eb',
+          points: netMonthlyData.map(m => ({ label: m.label, value: m.total_amount })),
+        },
       ];
     }
     return [{
       label: '매출금액 (납품완료)',
-      color: '#4f46e5',
+      color: '#84cc16',
       points: graphMonthlyData.map(m => ({ label: m.label, value: m.total_amount })),
     }];
-  }, [salesTab, totalMonthlyData, totalPurchaseData, graphMonthlyData]);
+  }, [salesTab, totalMonthlyData, totalPurchaseData, netMonthlyData, graphMonthlyData]);
 
   const monthTotals = useMemo(
     () => MONTH_LABELS.map((_, i) => filteredPartnerMatrix.reduce((s, r) => s + r.amounts[i], 0)),
@@ -222,7 +242,7 @@ export function DashboardView() {
 
   const graphSubtitle =
     salesTab === 'total'
-      ? `${year}년 전체 월별 매출·구매 (납품완료 / 입고완료 기준)`
+      ? `${year}년 전체 월별 매출·구매·차액 (납품완료 / 입고완료 기준)`
       : graphPartner
         ? `${year}년 ${graphPartner.name} 월별 합계 매출`
         : `${year}년 거래처를 선택해 주세요`;
@@ -261,10 +281,10 @@ export function DashboardView() {
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:col-span-1 space-y-4">
             <div>
               <div className="flex items-center gap-2 text-slate-500 text-xs mb-1">
-                <TrendingUp className="w-4 h-4 text-indigo-600" />
+                <TrendingUp className="w-4 h-4 text-lime-600" />
                 {year}년 매출금액 (납품완료)
               </div>
-              <p className="text-2xl font-bold text-indigo-700">{fmtW(yearSalesTotal)}</p>
+              <p className="text-2xl font-bold text-lime-700">{fmtW(yearSalesTotal)}</p>
             </div>
             <div>
               <div className="flex items-center gap-2 text-slate-500 text-xs mb-1">
@@ -383,21 +403,21 @@ export function DashboardView() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   <tr className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-medium text-indigo-900">매출금액 (납품완료)</td>
+                    <TableRowLabel title="매출금액" sub="납품완료" className="text-lime-700" />
                     {totalMonthlyData.map(m => (
                       <MatrixCell key={m.month} value={m.total_amount} />
                     ))}
                     <TotalCell value={yearSalesTotal} emphasis variant="sales" />
                   </tr>
                   <tr className="hover:bg-slate-50">
-                    <td className="px-4 py-3 font-medium text-orange-700">구매금액 (입고완료)</td>
+                    <TableRowLabel title="구매금액" sub="입고완료" className="text-orange-700" />
                     {totalPurchaseData.map(m => (
                       <MatrixCell key={m.month} value={m.total_amount} />
                     ))}
                     <TotalCell value={yearPurchaseTotal} emphasis variant="purchase" />
                   </tr>
-                  <tr className="bg-emerald-50/60">
-                    <td className="px-4 py-3 font-semibold text-emerald-900">매출-구매</td>
+                  <tr className="bg-blue-50/60">
+                    <TableRowLabel title="매출-구매" className="font-semibold text-blue-900" />
                     {netMonthlyData.map(m => (
                       <DiffCell key={m.month} value={m.total_amount} emphasis />
                     ))}

@@ -33,14 +33,20 @@ export function MonthlySalesChart({ series }: Props) {
     const innerW = W - PAD.left - PAD.right;
     const innerH = H - PAD.top - PAD.bottom;
     const allValues = series.flatMap(s => s.points.map(p => p.value));
-    const maxVal = Math.max(...allValues, 1);
-    const yMax = maxVal * 1.1;
+    const dataMax = Math.max(...allValues, 0);
+    const dataMin = Math.min(...allValues, 0);
+    const span = Math.max(dataMax - dataMin, 1);
+    const yMax = dataMax + span * 0.1;
+    const yMin = dataMin - span * 0.1;
+    const yRange = yMax - yMin;
     const yTicks = 4;
+
+    const valueToY = (val: number) => PAD.top + innerH - ((val - yMin) / yRange) * innerH;
 
     const lineSeries = series.map(s => {
       const coords = s.points.map((p, i) => {
         const x = PAD.left + (i / Math.max(s.points.length - 1, 1)) * innerW;
-        const y = PAD.top + innerH - (p.value / yMax) * innerH;
+        const y = valueToY(p.value);
         return { ...p, x, y };
       });
       const linePath = coords
@@ -50,12 +56,14 @@ export function MonthlySalesChart({ series }: Props) {
     });
 
     const yLabels = Array.from({ length: yTicks + 1 }, (_, i) => {
-      const val = (yMax / yTicks) * (yTicks - i);
+      const val = yMax - (yRange / yTicks) * i;
       const y = PAD.top + (i / yTicks) * innerH;
       return { val, y };
     });
 
-    return { lineSeries, yLabels, innerH };
+    const zeroY = yMin < 0 && yMax > 0 ? valueToY(0) : null;
+
+    return { lineSeries, yLabels, innerH, zeroY };
   }, [series]);
 
   const monthLabels = series[0]?.points.map(p => p.label) ?? [];
@@ -99,6 +107,16 @@ export function MonthlySalesChart({ series }: Props) {
           </g>
         ))}
 
+        {chart.zeroY !== null && (
+          <line
+            x1={PAD.left}
+            y1={chart.zeroY}
+            x2={W - PAD.right}
+            y2={chart.zeroY}
+            stroke="#94a3b8"
+            strokeDasharray="6 4"
+          />
+        )}
         <line
           x1={PAD.left}
           y1={PAD.top + chart.innerH}
@@ -128,10 +146,10 @@ export function MonthlySalesChart({ series }: Props) {
               <g key={`${s.label}-${c.label}`}>
                 <circle cx={c.x} cy={c.y} r={5} fill="white" stroke={s.color} strokeWidth={2.5} />
                 <title>{`${s.label} ${c.label}: ${fmt(c.value)}원`}</title>
-                {c.value > 0 && (
+                {c.value !== 0 && (
                   <text
                     x={c.x}
-                    y={c.y - 10}
+                    y={c.y - (c.value >= 0 ? 10 : -14)}
                     textAnchor="middle"
                     className="text-[9px] font-medium"
                     fill={s.color}
