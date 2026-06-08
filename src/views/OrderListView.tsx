@@ -8,7 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Pagination, usePagination } from '@/components/Pagination';
-import { fmt, fmtW, monthStart, monthEnd } from '@/types';
+import { fmt, fmtW, monthEnd } from '@/types';
 import type { OrderWithPartner } from '@/types';
 
 const inp = 'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500';
@@ -25,7 +25,7 @@ export function OrderListView() {
       q: searchParams.get('q') ?? '',
       col: searchParams.get('col') ?? 'all',
       status: searchParams.get('status') ?? 'all',
-      from: searchParams.get('from') ?? monthStart(),
+      from: searchParams.get('from') ?? '',
       to: searchParams.get('to') ?? monthEnd(),
       page: Number.isFinite(pageRaw) && pageRaw >= 1 ? pageRaw : 1,
     };

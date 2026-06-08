@@ -9,7 +9,7 @@ import { Modal } from '@/components/Modal';
 import { usePOs } from '@/hooks/usePOs';
 import { useDelivery } from '@/hooks/useDelivery';
 import { supabase } from '@/lib/supabase';
-import { fmt, fmtW, PO_STATUS_LABELS, monthStart, monthEnd, today, formatYmdSlash } from '@/types';
+import { fmt, fmtW, PO_STATUS_LABELS, monthEnd, today, formatYmdSlash } from '@/types';
 import type { POWithDetail, POItem } from '@/types';
 
 const inp = 'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500';
@@ -47,7 +47,7 @@ export function ReceivingView() {
       tab: searchParams.get('unremitted') === '1' ? 'unremitted' : tab,
       q: searchParams.get('q') ?? '',
       col: searchParams.get('col') ?? 'all',
-      from: searchParams.get('from') ?? monthStart(),
+      from: searchParams.get('from') ?? '',
       to: searchParams.get('to') ?? monthEnd(),
       page: Number.isFinite(pageRaw) && pageRaw >= 1 ? pageRaw : 1,
     };

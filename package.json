@@ -8,7 +8,10 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
-    "push": "git add -A && git commit -m chore:update && git push origin HEAD"
+    "git:push": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/git-push.ps1",
+    "git:push:test": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/git-push.ps1 -Target test",
+    "git:push:erp": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/git-push.ps1 -Target erp",
+    "git:push:all": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/git-push.ps1 -Target all"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",

@@ -7,7 +7,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { usePOs } from '@/hooks/usePOs';
 import { supabase } from '@/lib/supabase';
 import { Pagination, usePagination } from '@/components/Pagination';
-import { fmtW, monthStart, monthEnd, PAYMENT_TERMS_LABELS } from '@/types';
+import { fmtW, monthEnd, PAYMENT_TERMS_LABELS } from '@/types';
 import type { PaymentTerms } from '@/types';
 
 const inp = 'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500';
@@ -22,7 +22,7 @@ export function POSearchView() {
     return {
       q: searchParams.get('q') ?? '',
       col: searchParams.get('col') ?? 'all',
-      from: searchParams.get('from') ?? monthStart(),
+      from: searchParams.get('from') ?? '',
       to: searchParams.get('to') ?? monthEnd(),
       page: Number.isFinite(pageRaw) && pageRaw >= 1 ? pageRaw : 1,
     };
