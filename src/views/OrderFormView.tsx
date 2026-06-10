@@ -169,7 +169,10 @@ export function OrderFormView() {
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <div className="flex items-center gap-3">
         <button
-          onClick={() => navigate(isConfirmedEdit || fromConfirmed ? '/confirmed' : -1)}
+          onClick={() => {
+            if (isConfirmedEdit || fromConfirmed) navigate('/confirmed');
+            else navigate(-1);
+          }}
           className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
         >
           <ArrowLeft className="w-5 h-5 text-slate-600" />
