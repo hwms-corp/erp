@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { mergeQuery } from '@/lib/listQuery';
 import { motion } from 'motion/react';
-import { Search, Calendar, Trash2, RotateCcw, PackageCheck } from 'lucide-react';
+import { Search, Calendar, Trash2, RotateCcw, PackageCheck, Edit } from 'lucide-react';
 import { useOrders } from '@/hooks/useOrders';
 import { useDelivery } from '@/hooks/useDelivery';
 import { supabase } from '@/lib/supabase';
@@ -199,6 +199,13 @@ export function ConfirmedView() {
                 </td>
                 <td className="px-4 py-3 text-center">
                   <div className="flex items-center justify-center gap-1">
+                    <button
+                      onClick={() => navigate(`/orders/${o.id}/edit?from=confirmed`)}
+                      className="p-1.5 text-slate-400 hover:text-amber-600 transition-colors"
+                      title="수주 수정"
+                    >
+                      <Edit className="w-4 h-4" />
+                    </button>
                     <button
                       onClick={async () => {
                         if (!confirm(`${o.doc_no}을(를) 견적 단계로 되돌리시겠습니까?`)) return;

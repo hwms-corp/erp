@@ -189,6 +189,34 @@ export function useOrders() {
     return { error: null };
   }, []);
 
+  /** 수주 확정(발주 전) 건 수정 가능 여부. null이면 수정 가능 */
+  const getConfirmedOrderEditBlockReason = useCallback(async (orderId: number): Promise<string | null> => {
+    const { data: order } = await supabase
+      .from('orders')
+      .select('status, delivery_status')
+      .eq('id', orderId)
+      .single();
+
+    if (!order) return '주문을 찾을 수 없습니다.';
+    if (order.status !== 'confirmed') return null;
+
+    if (order.delivery_status === 'completed') {
+      return '납품완료된 건은 수정할 수 없습니다.';
+    }
+
+    const { count } = await supabase
+      .from('pos')
+      .select('id', { count: 'exact', head: true })
+      .eq('order_id', orderId)
+      .is('deleted_at', null);
+
+    if (count && count > 0) {
+      return '연결된 발주서가 있어 수정할 수 없습니다.';
+    }
+
+    return null;
+  }, []);
+
   const revertToDraft = useCallback(async (orderId: number) => {
     const { data, error } = await supabase
       .from('orders')
@@ -226,5 +254,8 @@ export function useOrders() {
     return { error: null };
   }, []);
 
-  return { orders, loading, fetchOrders, fetchOrderItems, createOrder, confirmOrder, confirmOrderWithItems, updateOrder, revertToDraft, deleteOrder };
+  return {
+    orders, loading, fetchOrders, fetchOrderItems, createOrder, confirmOrder, confirmOrderWithItems,
+    updateOrder, getConfirmedOrderEditBlockReason, revertToDraft, deleteOrder,
+  };
 }

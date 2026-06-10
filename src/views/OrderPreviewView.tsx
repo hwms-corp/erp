@@ -13,7 +13,7 @@ export function OrderPreviewView() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const printRef = useRef<HTMLDivElement>(null);
-  const { fetchOrderItems, confirmOrder, confirmOrderWithItems } = useOrders();
+  const { fetchOrderItems, confirmOrder, confirmOrderWithItems, getConfirmedOrderEditBlockReason } = useOrders();
   const { user } = useAuth();
 
   const [order, setOrder] = useState<OrderWithPartner | null>(null);
@@ -25,6 +25,7 @@ export function OrderPreviewView() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<number>>(new Set());
   const [confirmDocNo, setConfirmDocNo] = useState('');
+  const [editableConfirmed, setEditableConfirmed] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -38,6 +39,12 @@ export function OrderPreviewView() {
 
       if (orderRes.data) {
         setOrder(orderRes.data);
+        if (orderRes.data.status === 'confirmed') {
+          const blockReason = await getConfirmedOrderEditBlockReason(orderRes.data.id);
+          setEditableConfirmed(!blockReason);
+        } else {
+          setEditableConfirmed(false);
+        }
         const { data: itemData } = await fetchOrderItems(orderRes.data.id);
         if (itemData) setItems(itemData);
 
@@ -53,7 +60,7 @@ export function OrderPreviewView() {
       setLoading(false);
     };
     load();
-  }, [id, fetchOrderItems]);
+  }, [id, fetchOrderItems, getConfirmedOrderEditBlockReason]);
 
   const openConfirmModal = () => {
     setSelectedItemIds(new Set(items.map(i => i.id)));
@@ -164,6 +171,14 @@ export function OrderPreviewView() {
                 <CheckCircle2 className="w-4 h-4" /> 수주확정
               </button>
             </>
+          )}
+          {editableConfirmed && (
+            <button
+              onClick={() => navigate(`/orders/${order.id}/edit?from=confirmed`)}
+              className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 text-sm font-medium shadow-sm"
+            >
+              <Edit className="w-4 h-4" /> 수주 수정
+            </button>
           )}
           <button
             onClick={() => doPrint(printRef, `${order.doc_no}_${docTitle.replace(/ /g, '')}`)}
