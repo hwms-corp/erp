@@ -18,6 +18,7 @@ export function OrderFormView() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const fromConfirmed = searchParams.get('from') === 'confirmed';
+  const fromDelivery = searchParams.get('from') === 'delivery';
   const isEdit = Boolean(id);
   const { user } = useAuth();
   const { createOrder, updateOrder, fetchOrderItems, getConfirmedOrderEditBlockReason } = useOrders();
@@ -73,7 +74,7 @@ export function OrderFormView() {
         })));
       }
 
-      if (order.status === 'confirmed') {
+      if (order.status === 'confirmed' && !fromDelivery) {
         const blockReason = await getConfirmedOrderEditBlockReason(order.id);
         if (blockReason) {
           setError(blockReason);
@@ -86,7 +87,7 @@ export function OrderFormView() {
       }
     }
     setLoadingEdit(false);
-  }, [fetchOrderItems, getConfirmedOrderEditBlockReason]);
+  }, [fetchOrderItems, getConfirmedOrderEditBlockReason, fromDelivery]);
 
   useEffect(() => {
     if (id) loadOrder(id);
@@ -109,7 +110,7 @@ export function OrderFormView() {
     const validLines = lines.filter(l => l.name.trim());
     if (validLines.length === 0) { setError('최소 1개 이상의 품목을 입력해주세요.'); return; }
 
-    if (isEdit && id && orderStatus === 'confirmed') {
+    if (isEdit && id && orderStatus === 'confirmed' && !fromDelivery) {
       const blockReason = await getConfirmedOrderEditBlockReason(Number(id));
       if (blockReason) {
         setError(blockReason);
@@ -132,7 +133,9 @@ export function OrderFormView() {
         setError(msg || (isConfirmedEdit ? '수주 수정에 실패했습니다.' : '견적서 수정에 실패했습니다.'));
         return;
       }
-      if (isConfirmedEdit || fromConfirmed) {
+      if (fromDelivery) {
+        navigate('/delivery');
+      } else if (isConfirmedEdit || fromConfirmed) {
         navigate('/confirmed');
       } else {
         navigate(`/orders/${id}/preview`);
@@ -170,7 +173,8 @@ export function OrderFormView() {
       <div className="flex items-center gap-3">
         <button
           onClick={() => {
-            if (isConfirmedEdit || fromConfirmed) navigate('/confirmed');
+            if (fromDelivery) navigate('/delivery');
+            else if (isConfirmedEdit || fromConfirmed) navigate('/confirmed');
             else navigate(-1);
           }}
           className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
@@ -280,7 +284,11 @@ export function OrderFormView() {
         <div className="flex gap-3 justify-end">
           <button
             type="button"
-            onClick={() => navigate(isConfirmedEdit || fromConfirmed ? '/confirmed' : '/orders')}
+            onClick={() => {
+              if (fromDelivery) navigate('/delivery');
+              else if (isConfirmedEdit || fromConfirmed) navigate('/confirmed');
+              else navigate('/orders');
+            }}
             className="px-6 py-2.5 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
           >
             취소

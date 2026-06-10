@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { mergeQuery } from '@/lib/listQuery';
 import { motion } from 'motion/react';
-import { Truck, CheckCircle2, FileText, Search, Calendar, RotateCcw, Receipt, Check } from 'lucide-react';
+import { Truck, CheckCircle2, FileText, Search, Calendar, RotateCcw, Receipt, Check, Edit } from 'lucide-react';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Pagination, usePagination } from '@/components/Pagination';
 import { Modal } from '@/components/Modal';
@@ -395,6 +395,13 @@ export function DeliveryView() {
                   합계: <strong className="text-slate-900">{fmtW(card.total_amount)}</strong>
                 </span>
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/orders/${card.id}/edit?from=delivery`)}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl text-sm font-medium hover:bg-indigo-100"
+                  >
+                    <Edit className="w-4 h-4" /> 수정
+                  </button>
                   {isCompleted && (
                     <>
                       <button
