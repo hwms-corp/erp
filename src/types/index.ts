@@ -8,6 +8,7 @@ export type DeliveryStatus = 'pending' | 'completed';
 export type TaxInvoiceIssuedStatus = 'issued';
 export type POStatus = 'ordered' | 'partial_received' | 'received';
 export type RemittanceStatus = 'completed';
+export type ExpectedReceiptStatus = 'scheduled';
 export type PaymentTerms = 'immediate' | 'settlement';
 
 export interface AppUser {
@@ -94,6 +95,8 @@ export interface PO {
   status: POStatus;
   remittance_status: RemittanceStatus | null;
   remittance_date: string | null;
+  expected_receipt_status: ExpectedReceiptStatus | null;
+  expected_receipt_date: string | null;
   created_by: number;
   created_at: string;
   updated_at: string;

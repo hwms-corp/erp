@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { mergeQuery } from '@/lib/listQuery';
 import { motion } from 'motion/react';
-import { Package, CheckCircle2, RotateCcw, Search, Calendar, Banknote } from 'lucide-react';
+import { Package, CheckCircle2, RotateCcw, Search, Calendar, Banknote, CalendarClock } from 'lucide-react';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Pagination, usePagination } from '@/components/Pagination';
 import { Modal } from '@/components/Modal';
@@ -34,7 +34,7 @@ function isoToLocalYmd(iso: string): string {
 }
 
 export function ReceivingView() {
-  const { fetchPOs, fetchPOItems, updateReceivedQty, completeRemittance, clearRemittance } = usePOs();
+  const { fetchPOs, fetchPOItems, updateReceivedQty, completeRemittance, clearRemittance, completeExpectedReceipt, clearExpectedReceipt } = usePOs();
   const { revertDelivery } = useDelivery();
   const [searchParams, setSearchParams] = useSearchParams();
   const [cards, setCards] = useState<POCardData[]>([]);
@@ -65,6 +65,10 @@ export function ReceivingView() {
   const [remittanceDate, setRemittanceDate] = useState(today);
   const [remittanceSubmitting, setRemittanceSubmitting] = useState(false);
   const remittanceDateInputRef = useRef<HTMLInputElement>(null);
+  const [expectedReceiptModal, setExpectedReceiptModal] = useState<POCardData | null>(null);
+  const [expectedReceiptDate, setExpectedReceiptDate] = useState(today);
+  const [expectedReceiptSubmitting, setExpectedReceiptSubmitting] = useState(false);
+  const expectedReceiptDateInputRef = useRef<HTMLInputElement>(null);
   const searchCols = [
     { k: 'all', l: '전체' },
     { k: 'doc_no', l: '발주번호' },
@@ -171,6 +175,9 @@ export function ReceivingView() {
   const isRemittanceCompleted = (po: POCardData) =>
     po.remittance_status === 'completed' && !!po.remittance_date;
 
+  const isExpectedReceiptScheduled = (po: POCardData) =>
+    po.expected_receipt_status === 'scheduled' && !!po.expected_receipt_date;
+
   const openRemittanceModal = (po: POCardData) => {
     if (!hasReceivedItems(po) || isRemittanceCompleted(po)) return;
     setRemittanceDate(today());
@@ -191,6 +198,41 @@ export function ReceivingView() {
       alert('송금완료 처리 실패: ' + (error.message || ''));
     } else {
       setRemittanceModal(null);
+      await loadAll();
+    }
+  };
+
+  const openExpectedReceiptModal = (po: POCardData) => {
+    if (po.status !== 'ordered' || isExpectedReceiptScheduled(po)) return;
+    setExpectedReceiptDate(today());
+    setExpectedReceiptModal(po);
+  };
+
+  const closeExpectedReceiptModal = () => {
+    if (expectedReceiptSubmitting) return;
+    setExpectedReceiptModal(null);
+  };
+
+  const confirmExpectedReceipt = async () => {
+    if (!expectedReceiptModal || !expectedReceiptDate) return;
+    setExpectedReceiptSubmitting(true);
+    const { error } = await completeExpectedReceipt(expectedReceiptModal.id, expectedReceiptDate);
+    setExpectedReceiptSubmitting(false);
+    if (error) {
+      alert('입고예정 등록 실패: ' + (error.message || ''));
+    } else {
+      setExpectedReceiptModal(null);
+      await loadAll();
+    }
+  };
+
+  const handleClearExpectedReceipt = async (po: POCardData) => {
+    if (!isExpectedReceiptScheduled(po)) return;
+    if (!confirm(`${po.doc_no}의 입고예정일을 삭제하시겠습니까?`)) return;
+    const { error } = await clearExpectedReceipt(po.id);
+    if (error) {
+      alert('입고예정 삭제 실패: ' + (error.message || ''));
+    } else {
       await loadAll();
     }
   };
@@ -323,6 +365,9 @@ export function ReceivingView() {
                   {hasReceivedItems(po) && (
                     <span>입고 처리: {isoToLocalYmd(po.updated_at)}</span>
                   )}
+                  {isExpectedReceiptScheduled(po) && (
+                    <span>입고예정일: {formatYmdSlash(po.expected_receipt_date!)}</span>
+                  )}
                   <span>발주일: {po.po_date}</span>
                   {po.required_date && <span>납기: {po.required_date}</span>}
                 </div>
@@ -389,6 +434,25 @@ export function ReceivingView() {
                   발주금액: <strong>{fmtW(po.po_amount)}</strong> / 입고금액: <strong>{fmtW(po.received_amount)}</strong>
                 </span>
                 <div className="flex items-center gap-2">
+                  {tab === 'ordered' && po.status === 'ordered' && (
+                    isExpectedReceiptScheduled(po) ? (
+                      <button
+                        type="button"
+                        onClick={() => handleClearExpectedReceipt(po)}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium bg-red-50 text-red-500 hover:bg-red-100"
+                      >
+                        <CalendarClock className="w-4 h-4" /> 입고예정삭제
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => openExpectedReceiptModal(po)}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium bg-violet-50 text-violet-700 hover:bg-violet-100"
+                      >
+                        <CalendarClock className="w-4 h-4" /> 입고예정
+                      </button>
+                    )
+                  )}
                   {hasReceivedItems(po) && (
                     <>
                       <button
@@ -438,6 +502,57 @@ export function ReceivingView() {
           pageSize={pageSize}
         />
       </div>
+
+      {expectedReceiptModal && (
+        <Modal title="입고예정일자 선택" onClose={closeExpectedReceiptModal}>
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600">
+              <span className="font-medium text-slate-900">{expectedReceiptModal.doc_no}</span>
+              <span className="mx-1">·</span>
+              {expectedReceiptModal.partner_name}
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">입고예정일자</label>
+              <button
+                type="button"
+                disabled={expectedReceiptSubmitting}
+                onClick={() => expectedReceiptDateInputRef.current?.showPicker()}
+                className={`${inp} w-full text-left tabular-nums text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                {expectedReceiptDate ? formatYmdSlash(expectedReceiptDate) : '—'}
+              </button>
+              <input
+                ref={expectedReceiptDateInputRef}
+                type="date"
+                className="sr-only"
+                value={expectedReceiptDate}
+                onChange={e => setExpectedReceiptDate(e.target.value)}
+                disabled={expectedReceiptSubmitting}
+                tabIndex={-1}
+                aria-hidden
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={closeExpectedReceiptModal}
+                disabled={expectedReceiptSubmitting}
+                className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 disabled:opacity-50"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={confirmExpectedReceipt}
+                disabled={expectedReceiptSubmitting || !expectedReceiptDate}
+                className="px-4 py-2 bg-violet-600 text-white rounded-xl text-sm font-medium hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {expectedReceiptSubmitting ? '처리 중…' : '등록'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {remittanceModal && (
         <Modal title="송금완료일자 선택" onClose={closeRemittanceModal}>

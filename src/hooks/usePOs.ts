@@ -223,6 +223,32 @@ export function usePOs() {
     return { error };
   }, []);
 
+  const completeExpectedReceipt = useCallback(async (poId: number, expectedDate: string) => {
+    const { data, error } = await supabase
+      .from('pos')
+      .update({
+        expected_receipt_status: 'scheduled',
+        expected_receipt_date: expectedDate,
+      })
+      .eq('id', poId)
+      .select()
+      .single();
+
+    return { data, error };
+  }, []);
+
+  const clearExpectedReceipt = useCallback(async (poId: number) => {
+    const { error } = await supabase
+      .from('pos')
+      .update({
+        expected_receipt_status: null,
+        expected_receipt_date: null,
+      })
+      .eq('id', poId);
+
+    return { error };
+  }, []);
+
   const deletePO = useCallback(async (poId: number) => {
     const now = new Date().toISOString();
     const { error: itemErr } = await supabase
@@ -256,6 +282,8 @@ export function usePOs() {
     updateReceivedQty,
     completeRemittance,
     clearRemittance,
+    completeExpectedReceipt,
+    clearExpectedReceipt,
     checkOrderHasPO,
     deletePO,
   };
