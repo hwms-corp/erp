@@ -22,6 +22,13 @@ const tabs: { key: TabKey; label: string }[] = [
 
 const DELIVERY_TAB_KEYS = new Set<TabKey>(['all', 'pending', 'completed', 'no_tax']);
 
+function matchesSpecSearch(spec: string | null | undefined, t1: string, t2: string): boolean {
+  const s = (spec || '').toLowerCase();
+  if (!t1) return true;
+  if (!t2) return s.includes(t1);
+  return s.includes(t1) && s.includes(t2);
+}
+
 interface DeliveryCard extends OrderWithPartner {
   items: OrderItem[];
   allPOsReceived: boolean;
@@ -48,6 +55,7 @@ export function DeliveryView() {
     return {
       tab: resolved,
       q: searchParams.get('q') ?? '',
+      q2: searchParams.get('q2') ?? '',
       col: searchParams.get('col') ?? 'all',
       from: searchParams.get('from') ?? '',
       to: searchParams.get('to') ?? monthEnd(),
@@ -56,11 +64,16 @@ export function DeliveryView() {
   }, [searchParams]);
 
   const [searchInput, setSearchInput] = useState(listQ.q);
+  const [searchInput2, setSearchInput2] = useState(listQ.q2);
   useEffect(() => {
     setSearchInput(listQ.q);
   }, [listQ.q]);
+  useEffect(() => {
+    setSearchInput2(listQ.q2);
+  }, [listQ.q2]);
 
-  const { tab, q: search, col: searchCol, from: dateFrom, to: dateTo, page } = listQ;
+  const { tab, q: search, q2: search2, col: searchCol, from: dateFrom, to: dateTo, page } = listQ;
+  const isSpecSearch = searchCol === 'spec';
   const isNoTaxTab = tab === 'no_tax';
 
   const setListParams = useCallback((patch: Record<string, string | null | undefined>, replace = true) => {
@@ -127,7 +140,17 @@ export function DeliveryView() {
     }
     if (dateFrom) list = list.filter(c => c.order_date >= dateFrom);
     if (dateTo) list = list.filter(c => c.order_date <= dateTo);
-    if (search) {
+
+    if (searchCol === 'spec' && search) {
+      const t1 = search.trim().toLowerCase();
+      const t2 = search2.trim().toLowerCase();
+      list = list
+        .map(c => ({
+          ...c,
+          items: c.items.filter(item => matchesSpecSearch(item.spec, t1, t2)),
+        }))
+        .filter(c => c.items.length > 0);
+    } else if (search) {
       const q = search.toLowerCase();
       list = list.filter(c => {
         const itemNames = c.items.map(i => i.name).join(' ').toLowerCase();
@@ -143,12 +166,11 @@ export function DeliveryView() {
         if (searchCol === 'doc_no') return c.doc_no.toLowerCase().includes(q);
         if (searchCol === 'partner') return c.partner_name.toLowerCase().includes(q);
         if (searchCol === 'name') return itemNames.includes(q);
-        if (searchCol === 'spec') return itemSpecs.includes(q);
         return false;
       });
     }
     return list;
-  }, [cards, tab, dateFrom, dateTo, search, searchCol]);
+  }, [cards, tab, dateFrom, dateTo, search, search2, searchCol]);
 
   const { totalItems, totalPages, pageSize, getPage } = usePagination(filtered, 10);
   const paged = getPage(page);
@@ -156,6 +178,39 @@ export function DeliveryView() {
     () => paged.reduce((sum, card) => sum + card.total_amount, 0),
     [paged],
   );
+
+  const applySearch = useCallback(() => {
+    const v1 = searchInput.trim();
+    const v2 = searchInput2.trim();
+    if (isSpecSearch) {
+      setListParams({
+        ...(v1 ? { q: v1 } : { q: null }),
+        ...(v1 && v2 ? { q2: v2 } : { q2: null }),
+        page: '1',
+      });
+    } else {
+      setListParams({
+        ...(v1 ? { q: v1 } : { q: null }),
+        q2: null,
+        page: '1',
+      });
+    }
+  }, [isSpecSearch, searchInput, searchInput2, setListParams]);
+
+  const clearSearch = useCallback(() => {
+    setSearchInput('');
+    setSearchInput2('');
+    setListParams({ q: null, q2: null, page: '1' });
+  }, [setListParams]);
+
+  const handleSearchColChange = (col: string) => {
+    if (col === 'spec') {
+      setListParams({ col, page: '1' });
+    } else {
+      setSearchInput2('');
+      setListParams({ col, q2: null, page: '1' });
+    }
+  };
 
   const handleComplete = async (orderId: number) => {
     if (!confirm('납품완료 처리하시겠습니까?')) return;
@@ -280,40 +335,74 @@ export function DeliveryView() {
         <select
           className="px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none bg-white shrink-0"
           value={searchCol}
-          onChange={e => setListParams({ col: e.target.value, page: '1' })}
+          onChange={e => handleSearchColChange(e.target.value)}
         >
           {searchCols.map(c => <option key={c.k} value={c.k}>{c.l}</option>)}
         </select>
-        <div className="flex-1 bg-white px-4 py-2.5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-3">
-          <Search className="w-5 h-5 text-slate-400 shrink-0" />
-          <input
-            type="text"
-            placeholder="견적번호·거래처·품명·사양 검색 (Enter)"
-            className="flex-1 outline-none text-sm"
-            value={searchInput}
-            onChange={e => setSearchInput(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') {
-                const v = searchInput.trim();
-                setListParams({
-                  ...(v ? { q: v } : { q: null }),
-                  page: '1',
-                });
-              }
-            }}
-          />
-          {searchInput && (
-            <button
-              onClick={() => {
-                setSearchInput('');
-                setListParams({ q: null, page: '1' });
-              }}
-              className="text-slate-400 hover:text-slate-600 text-xs"
-            >
-              ✕
-            </button>
-          )}
-        </div>
+        {isSpecSearch ? (
+          <div className="flex-1 flex items-center gap-2 min-w-0">
+            <div className="flex-1 bg-white px-4 py-2.5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-3 min-w-0">
+              <Search className="w-5 h-5 text-slate-400 shrink-0" />
+              <input
+                type="text"
+                placeholder="사양 검색 1 (Enter)"
+                className="flex-1 outline-none text-sm min-w-0"
+                value={searchInput}
+                onChange={e => {
+                  const v = e.target.value;
+                  setSearchInput(v);
+                  if (!v.trim()) setSearchInput2('');
+                }}
+                onKeyDown={e => { if (e.key === 'Enter') applySearch(); }}
+              />
+            </div>
+            <span className="text-slate-400 text-sm shrink-0">+</span>
+            <div className={`flex-1 px-4 py-2.5 rounded-2xl shadow-sm border flex items-center gap-3 min-w-0 ${
+              searchInput.trim()
+                ? 'bg-white border-slate-200'
+                : 'bg-slate-50 border-slate-200 opacity-60'
+            }`}>
+              <Search className="w-5 h-5 text-slate-400 shrink-0" />
+              <input
+                type="text"
+                placeholder="사양 검색 2 (Enter)"
+                className="flex-1 outline-none text-sm min-w-0 disabled:cursor-not-allowed disabled:bg-transparent"
+                value={searchInput2}
+                disabled={!searchInput.trim()}
+                onChange={e => setSearchInput2(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') applySearch(); }}
+              />
+            </div>
+            {(searchInput || searchInput2) && (
+              <button
+                onClick={clearSearch}
+                className="text-slate-400 hover:text-slate-600 text-xs shrink-0 px-1"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="flex-1 bg-white px-4 py-2.5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-3">
+            <Search className="w-5 h-5 text-slate-400 shrink-0" />
+            <input
+              type="text"
+              placeholder="견적번호·거래처·품명·사양 검색 (Enter)"
+              className="flex-1 outline-none text-sm"
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') applySearch(); }}
+            />
+            {searchInput && (
+              <button
+                onClick={clearSearch}
+                className="text-slate-400 hover:text-slate-600 text-xs"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="space-y-4">
@@ -392,7 +481,13 @@ export function DeliveryView() {
 
               <div className="p-4 border-t border-slate-100 flex justify-between items-center">
                 <span className="text-sm text-slate-500">
-                  합계: <strong className="text-slate-900">{fmtW(card.total_amount)}</strong>
+                  합계: <strong className="text-slate-900">
+                    {fmtW(
+                      isSpecSearch && search
+                        ? card.items.reduce((sum, item) => sum + item.qty * item.price, 0)
+                        : card.total_amount,
+                    )}
+                  </strong>
                 </span>
                 <div className="flex items-center gap-2">
                   <button
