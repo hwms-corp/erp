@@ -7,6 +7,8 @@ import { useOrders } from '@/hooks/useOrders';
 import { useDelivery } from '@/hooks/useDelivery';
 import { supabase } from '@/lib/supabase';
 import { Pagination, usePagination } from '@/components/Pagination';
+import { HighlightText } from '@/components/HighlightText';
+import { getHighlightQueries } from '@/lib/searchHighlight';
 import { fmtW, monthEnd } from '@/types';
 import type { OrderWithPartner } from '@/types';
 
@@ -175,10 +177,14 @@ export function ConfirmedView() {
               <tr key={o.id} className="hover:bg-slate-50">
                 <td className="px-4 py-3 text-slate-600">{o.order_date}</td>
                 <td className="px-4 py-3">
-                  <span className="font-medium text-indigo-600 cursor-pointer hover:underline" onClick={() => navigate(`/orders/${o.id}/preview`)}>{o.doc_no}</span>
+                  <span className="font-medium text-indigo-600 cursor-pointer hover:underline" onClick={() => navigate(`/orders/${o.id}/preview`)}>
+                    <HighlightText text={o.doc_no} queries={getHighlightQueries(search, searchCol, 'doc_no')} />
+                  </span>
                   {o.origin_order_id && <span className="ml-1 text-xs text-slate-400">(부분확정)</span>}
                 </td>
-                <td className="px-4 py-3 font-medium text-slate-900">{o.partner_name}</td>
+                <td className="px-4 py-3 font-medium text-slate-900">
+                  <HighlightText text={o.partner_name} queries={getHighlightQueries(search, searchCol, 'partner')} />
+                </td>
                 <td className="px-4 py-3 text-right font-medium">{fmtW(o.supply_amount)}</td>
                 <td className="px-4 py-3 text-center">
                   <div className="flex items-center justify-center gap-1">

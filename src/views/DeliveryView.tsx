@@ -6,6 +6,8 @@ import { Truck, CheckCircle2, FileText, Search, Calendar, RotateCcw, Receipt, Ch
 import { StatusBadge } from '@/components/StatusBadge';
 import { Pagination, usePagination } from '@/components/Pagination';
 import { Modal } from '@/components/Modal';
+import { HighlightText } from '@/components/HighlightText';
+import { getHighlightQueries } from '@/lib/searchHighlight';
 import { useDelivery } from '@/hooks/useDelivery';
 import { supabase } from '@/lib/supabase';
 import { fmt, fmtW, monthEnd, today, formatYmdSlash } from '@/types';
@@ -434,9 +436,11 @@ export function DeliveryView() {
                       className="font-semibold text-indigo-600 cursor-pointer hover:underline"
                       onClick={() => navigate(`/orders/${card.id}/preview`)}
                     >
-                      {card.doc_no}
+                      <HighlightText text={card.doc_no} queries={getHighlightQueries(search, searchCol, 'doc_no', search2)} />
                     </span>
-                    <span className="ml-2 text-sm text-slate-500">{card.partner_name}</span>
+                    <span className="ml-2 text-sm text-slate-500">
+                      <HighlightText text={card.partner_name} queries={getHighlightQueries(search, searchCol, 'partner', search2)} />
+                    </span>
                   </div>
                   <StatusBadge status={card.delivery_status ?? 'pending'} />
                   {!card.hasPOs && card.delivery_status === 'completed' && (
@@ -468,8 +472,12 @@ export function DeliveryView() {
                   <tbody className="divide-y divide-slate-100">
                     {card.items.map(item => (
                       <tr key={item.id}>
-                        <td className="px-4 py-2.5 font-medium text-slate-900">{item.name}</td>
-                        <td className="px-4 py-2.5 text-slate-600">{item.spec}</td>
+                        <td className="px-4 py-2.5 font-medium text-slate-900">
+                          <HighlightText text={item.name} queries={getHighlightQueries(search, searchCol, 'name', search2)} />
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-600">
+                          <HighlightText text={item.spec} queries={getHighlightQueries(search, searchCol, 'spec', search2)} />
+                        </td>
                         <td className="px-4 py-2.5 text-right">{item.qty} {item.unit}</td>
                         <td className="px-4 py-2.5 text-right">{fmtW(item.price)}</td>
                         <td className="px-4 py-2.5 text-right font-medium">{fmtW(item.qty * item.price)}</td>

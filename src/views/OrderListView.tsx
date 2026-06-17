@@ -8,6 +8,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { StatusBadge } from '@/components/StatusBadge';
 import { Pagination, usePagination } from '@/components/Pagination';
+import { HighlightText } from '@/components/HighlightText';
+import { getHighlightQueries } from '@/lib/searchHighlight';
 import { fmt, fmtW, monthEnd } from '@/types';
 import type { OrderWithPartner } from '@/types';
 
@@ -202,9 +204,13 @@ export function OrderListView() {
             <tbody className="divide-y divide-slate-100">
               {visible.map(o => (
                 <tr key={o.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium text-indigo-600 hover:underline cursor-pointer" onClick={() => navigate(`/orders/${o.id}/preview`)}>{o.doc_no}</td>
+                  <td className="px-4 py-3 font-medium text-indigo-600 hover:underline cursor-pointer" onClick={() => navigate(`/orders/${o.id}/preview`)}>
+                    <HighlightText text={o.doc_no} queries={getHighlightQueries(search, searchCol, 'doc_no')} />
+                  </td>
                   <td className="px-4 py-3 text-slate-600">{o.order_date}</td>
-                  <td className="px-4 py-3 text-slate-600">{o.partner_name}</td>
+                  <td className="px-4 py-3 text-slate-600">
+                    <HighlightText text={o.partner_name} queries={getHighlightQueries(search, searchCol, 'partner')} />
+                  </td>
                   <td className="px-4 py-3"><StatusBadge status={o.status === 'confirmed' && o.delivery_status === 'completed' ? 'completed' : o.status} /></td>
                   <td className="px-4 py-3 text-right text-slate-600">{fmtW(o.supply_amount)}</td>
                   <td className="px-4 py-3 text-right text-slate-600">{fmtW(o.tax_amount)}</td>

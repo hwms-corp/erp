@@ -6,6 +6,8 @@ import { Package, CheckCircle2, RotateCcw, Search, Calendar, Banknote, CalendarC
 import { StatusBadge } from '@/components/StatusBadge';
 import { Pagination, usePagination } from '@/components/Pagination';
 import { Modal } from '@/components/Modal';
+import { HighlightText } from '@/components/HighlightText';
+import { getHighlightQueries } from '@/lib/searchHighlight';
 import { usePOs } from '@/hooks/usePOs';
 import { useDelivery } from '@/hooks/useDelivery';
 import { supabase } from '@/lib/supabase';
@@ -353,8 +355,12 @@ export function ReceivingView() {
                 <div className="flex items-center gap-3">
                   <Package className="w-5 h-5 text-indigo-500" />
                   <div>
-                    <span className="font-semibold text-slate-900">{po.doc_no}</span>
-                    <span className="ml-2 text-sm text-slate-500">{po.partner_name}</span>
+                    <span className="font-semibold text-slate-900">
+                      <HighlightText text={po.doc_no} queries={getHighlightQueries(search, searchCol, 'doc_no')} />
+                    </span>
+                    <span className="ml-2 text-sm text-slate-500">
+                      <HighlightText text={po.partner_name} queries={getHighlightQueries(search, searchCol, 'partner')} />
+                    </span>
                   </div>
                   <StatusBadge status={po.status} />
                 </div>
@@ -393,8 +399,12 @@ export function ReceivingView() {
                       const lineAmount = item.qty * item.price;
                       return (
                         <tr key={item.id}>
-                          <td className="px-3 py-2.5 font-medium text-slate-900 break-words align-top">{item.name}</td>
-                          <td className="px-3 py-2.5 text-slate-600 break-words align-top">{item.spec}</td>
+                          <td className="px-3 py-2.5 font-medium text-slate-900 break-words align-top">
+                            <HighlightText text={item.name} queries={getHighlightQueries(search, searchCol, 'name')} />
+                          </td>
+                          <td className="px-3 py-2.5 text-slate-600 break-words align-top">
+                            <HighlightText text={item.spec} queries={getHighlightQueries(search, searchCol, 'spec')} />
+                          </td>
                           <td className="px-3 py-2.5 pr-2 text-right tabular-nums whitespace-nowrap align-top">{fmt(item.qty)}</td>
                           <td className="px-3 py-2.5 pr-2 text-right text-indigo-600 font-medium tabular-nums whitespace-nowrap align-top">{fmt(item.received_qty)}</td>
                           <td className={`px-3 py-2.5 pr-2 text-right font-medium tabular-nums whitespace-nowrap align-top ${remaining > 0 ? 'text-orange-600' : 'text-emerald-600'}`}>

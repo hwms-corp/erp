@@ -8,6 +8,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { Modal } from '@/components/Modal';
 import { Pagination, usePagination } from '@/components/Pagination';
+import { HighlightText } from '@/components/HighlightText';
+import { getHighlightQueries } from '@/lib/searchHighlight';
 import { PARTNER_TYPE_LABELS, BIZ_TYPE_LABELS, fmt, fmtW } from '@/types';
 import type { Partner, PartnerType, BizType } from '@/types';
 
@@ -231,10 +233,18 @@ export function PartnerListView() {
                     p.type === 'sales' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'
                   }`}>{PARTNER_TYPE_LABELS[p.type]}</span>
                 </td>
-                <td className="px-4 py-3 font-medium text-indigo-600 hover:underline cursor-pointer" onClick={() => navigate(`/partners/${p.code}`)}>{p.name}</td>
-                <td className="px-4 py-3 text-slate-600">{p.biz_no}</td>
-                <td className="px-4 py-3 text-slate-600">{p.rep}</td>
-                <td className="px-4 py-3 text-slate-600">{p.tel}</td>
+                <td className="px-4 py-3 font-medium text-indigo-600 hover:underline cursor-pointer" onClick={() => navigate(`/partners/${p.code}`)}>
+                  <HighlightText text={p.name} queries={getHighlightQueries(search, searchCol, 'name')} />
+                </td>
+                <td className="px-4 py-3 text-slate-600">
+                  <HighlightText text={p.biz_no} queries={getHighlightQueries(search, searchCol, 'biz_no')} />
+                </td>
+                <td className="px-4 py-3 text-slate-600">
+                  <HighlightText text={p.rep} queries={getHighlightQueries(search, searchCol, 'rep')} />
+                </td>
+                <td className="px-4 py-3 text-slate-600">
+                  <HighlightText text={p.tel} queries={getHighlightQueries(search, searchCol, 'tel')} />
+                </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-1">
                     <button onClick={(e) => openEdit(p, e)} className="p-1.5 text-slate-400 hover:text-indigo-600" title="수정"><Edit3 className="w-4 h-4" /></button>

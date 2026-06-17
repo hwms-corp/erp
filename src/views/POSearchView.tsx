@@ -7,6 +7,8 @@ import { StatusBadge } from '@/components/StatusBadge';
 import { usePOs } from '@/hooks/usePOs';
 import { supabase } from '@/lib/supabase';
 import { Pagination, usePagination } from '@/components/Pagination';
+import { HighlightText } from '@/components/HighlightText';
+import { getHighlightQueries } from '@/lib/searchHighlight';
 import { fmtW, monthEnd, PAYMENT_TERMS_LABELS } from '@/types';
 import type { PaymentTerms } from '@/types';
 
@@ -184,9 +186,11 @@ export function POSearchView() {
                   className="px-4 py-3 font-medium text-indigo-600 cursor-pointer hover:underline"
                   onClick={() => navigate(`/pos/${po.id}/preview`)}
                 >
-                  {po.doc_no}
+                  <HighlightText text={po.doc_no} queries={getHighlightQueries(search, searchCol, 'doc_no')} />
                 </td>
-                <td className="px-4 py-3 font-medium text-slate-900">{po.partner_name}</td>
+                <td className="px-4 py-3 font-medium text-slate-900">
+                  <HighlightText text={po.partner_name} queries={getHighlightQueries(search, searchCol, 'partner')} />
+                </td>
                 <td className="px-4 py-3 text-right font-medium">{fmtW(po.po_amount)}</td>
                 <td className="px-4 py-3 text-right text-slate-600">{fmtW(po.received_amount)}</td>
                 <td className="px-4 py-3 text-center text-xs">
