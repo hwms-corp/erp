@@ -17,7 +17,7 @@ const inp = 'w-full px-3 py-2 border border-slate-300 rounded-lg text-sm outline
 
 export function PartnerListView() {
   const { user } = useAuth();
-  const { partners, fetchPartners, createPartner, updatePartner, deletePartner } = usePartners();
+  const { partners, fetchPartners, generateNextPartnerCode, createPartner, updatePartner, deletePartner } = usePartners();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -45,6 +45,7 @@ export function PartnerListView() {
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ code: '', name: '', type: 'sales' as PartnerType, biz_no: '', biz_type: 'corporate' as BizType, rep: '', tel: '', fax: '', addr: '', bank: '', account: '', email: '' });
   const [delivPartnerIds, setDelivPartnerIds] = useState<Set<number> | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => { fetchPartners(); }, [fetchPartners]);
 
@@ -106,20 +107,30 @@ export function PartnerListView() {
   };
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editId) {
-      const { error } = await updatePartner(editId, form);
-      if (error) { alert('수정 실패: ' + (error.message || JSON.stringify(error))); return; }
-    } else {
-      let code = form.code;
-      if (!code) {
-        const nums = partners.map(p => { const m = p.code.match(/^PTN-(\d+)$/); return m ? Number(m[1]) : 0; });
-        const next = (nums.length > 0 ? Math.max(...nums) : 0) + 1;
-        code = `PTN-${String(next).padStart(3, '0')}`;
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      if (editId) {
+        const { error } = await updatePartner(editId, form);
+        if (error) { alert('수정 실패: ' + (error.message || JSON.stringify(error))); return; }
+      } else {
+        const code = form.code.trim() || await generateNextPartnerCode();
+        const { error } = await createPartner({ ...form, code });
+        if (error) {
+          const msg = error.message || '';
+          if (msg.includes('partners_code_key')) {
+            alert('등록 실패: 거래처 코드가 중복됩니다. 잠시 후 다시 시도해 주세요.');
+          } else {
+            alert('등록 실패: ' + (msg || JSON.stringify(error)));
+          }
+          return;
+        }
       }
-      const { error } = await createPartner({ ...form, code });
-      if (error) { alert('등록 실패: ' + (error.message || JSON.stringify(error))); return; }
+      setModal(false);
+      await fetchPartners();
+    } finally {
+      setSubmitting(false);
     }
-    setModal(false);
   };
 
   return (
@@ -305,7 +316,7 @@ export function PartnerListView() {
               <div><label className="block text-sm font-medium text-slate-700 mb-1">은행</label><input className={inp} value={form.bank} onChange={e => setForm({ ...form, bank: e.target.value })} /></div>
               <div><label className="block text-sm font-medium text-slate-700 mb-1">계좌번호</label><input className={inp} value={form.account} onChange={e => setForm({ ...form, account: e.target.value })} /></div>
             </div>
-            <button type="submit" className="w-full py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 mt-4">{editId ? '수정' : '등록'}</button>
+            <button type="submit" disabled={submitting} className="w-full py-2.5 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 mt-4 disabled:opacity-50 disabled:cursor-not-allowed">{submitting ? '처리 중…' : editId ? '수정' : '등록'}</button>
           </form>
         </Modal>
       )}

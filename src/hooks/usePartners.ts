@@ -34,6 +34,21 @@ export function usePartners() {
     return { data, error };
   }, []);
 
+  const generateNextPartnerCode = useCallback(async (): Promise<string> => {
+    // deleted_at 포함 전체 조회 — soft delete된 code도 UNIQUE에 잡히므로 채번에 반영해야 함
+    const { data } = await supabase
+      .from('partners')
+      .select('code')
+      .like('code', 'PTN-%');
+
+    let max = 0;
+    for (const row of data ?? []) {
+      const m = row.code.match(/^PTN-(\d+)$/);
+      if (m) max = Math.max(max, Number(m[1]));
+    }
+    return `PTN-${String(max + 1).padStart(3, '0')}`;
+  }, []);
+
   const createPartner = useCallback(async (form: PartnerFormData) => {
     const { data, error } = await supabase
       .from('partners')
@@ -81,5 +96,5 @@ export function usePartners() {
     return { error: null };
   }, []);
 
-  return { partners, loading, fetchPartners, createPartner, updatePartner, deletePartner };
+  return { partners, loading, fetchPartners, generateNextPartnerCode, createPartner, updatePartner, deletePartner };
 }
