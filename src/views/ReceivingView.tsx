@@ -137,10 +137,20 @@ export function ReceivingView() {
     setSearchParams(prev => mergeQuery(prev, patch), { replace });
   }, [setSearchParams]);
 
+  const hasRemainingReceive = (po: POCardData) =>
+    po.items.some(it => it.received_qty < it.qty);
+
   const handleFullReceive = async (po: POCardData) => {
+    if (!hasRemainingReceive(po)) return;
+    if (!confirm(`${po.doc_no} 전량입고 처리하시겠습니까?`)) return;
     for (const item of po.items) {
       if (item.received_qty < item.qty) {
-        await updateReceivedQty(item.id, item.qty);
+        const { error } = await updateReceivedQty(item.id, item.qty);
+        if (error) {
+          alert('입고 처리 실패: ' + (error.message || ''));
+          await loadAll();
+          return;
+        }
       }
     }
     await loadAll();
@@ -349,6 +359,7 @@ export function ReceivingView() {
       <div className="space-y-4">
         {pagedFiltered.map(po => {
           const isFullyReceived = po.status === 'received';
+          const showFullReceive = hasRemainingReceive(po);
           return (
             <div key={po.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="flex items-center justify-between p-4 border-b border-slate-100">
@@ -485,8 +496,9 @@ export function ReceivingView() {
                       </button>
                     </>
                   )}
-                  {!isFullyReceived && (
+                  {!isFullyReceived && showFullReceive && (
                     <button
+                      type="button"
                       onClick={() => handleFullReceive(po)}
                       className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700"
                     >
