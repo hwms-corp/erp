@@ -8,7 +8,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePOs } from '@/hooks/usePOs';
 import { usePartners } from '@/hooks/usePartners';
 import { supabase } from '@/lib/supabase';
-import { today, PAYMENT_TERMS_LABELS } from '@/types';
+import { today, PAYMENT_TERMS_LABELS, fmtW } from '@/types';
+import { calcPOAmounts } from '@/lib/poAmounts';
 import type { Partner, POLine, PaymentTerms, OrderItem } from '@/types';
 import { emptyPOLine } from '@/types';
 
@@ -123,6 +124,9 @@ export function POFormView() {
   }, [orderId, loadFromOrder]);
 
   const purchasePartners = partners.filter(p => p.type === 'purchasing' || p.type === 'both');
+
+  const validLinesForAmount = lines.filter(l => l.name.trim());
+  const { supply, tax, total } = calcPOAmounts(validLinesForAmount);
 
   const handleSubmit = async () => {
     if (!partner) return alert('거래처를 선택해주세요.');
@@ -248,6 +252,25 @@ export function POFormView() {
           <label className="block text-sm font-medium text-slate-700 mb-1">비고</label>
           <textarea className={`${inp} min-h-[80px]`} value={remark} onChange={e => setRemark(e.target.value)} placeholder="비고사항 입력..." />
         </div>
+
+        {validLinesForAmount.length > 0 && (
+          <div className="flex justify-end">
+            <div className="bg-slate-50 rounded-xl p-4 space-y-2 text-sm min-w-[240px]">
+              <div className="flex justify-between">
+                <span className="text-slate-500">공급가액</span>
+                <span className="text-slate-900">{fmtW(supply)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">부가세 (10%)</span>
+                <span className="text-slate-900">{fmtW(tax)}</span>
+              </div>
+              <div className="flex justify-between border-t border-slate-200 pt-2 font-semibold">
+                <span className="text-slate-700">합계</span>
+                <span className="text-indigo-600">{fmtW(total)}</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
           <button onClick={() => navigate('/pos')} className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800">취소</button>

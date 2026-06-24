@@ -6,6 +6,7 @@ import { doPrint } from '@/components/PrintStyles';
 import { usePOs } from '@/hooks/usePOs';
 import { supabase } from '@/lib/supabase';
 import { fmt, fmtW, PAYMENT_TERMS_LABELS } from '@/types';
+import { calcPOAmounts } from '@/lib/poAmounts';
 import type { POWithDetail, POItem, Company, Partner, PaymentTerms } from '@/types';
 
 export function POPreviewView() {
@@ -65,9 +66,7 @@ export function POPreviewView() {
     );
   }
 
-  const supply = items.reduce((s, it) => s + it.qty * it.price, 0);
-  const tax = Math.round(supply * 0.1);
-  const total = supply + tax;
+  const { supply, tax, total } = calcPOAmounts(items);
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
