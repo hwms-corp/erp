@@ -126,7 +126,7 @@ export function POFormView() {
   const purchasePartners = partners.filter(p => p.type === 'purchasing' || p.type === 'both');
 
   const validLinesForAmount = lines.filter(l => l.name.trim());
-  const { supply, tax, total } = calcPOAmounts(validLinesForAmount);
+  const { supply, tax, total } = calcPOAmounts(validLinesForAmount, partner?.name ?? '');
 
   const handleSubmit = async () => {
     if (!partner) return alert('거래처를 선택해주세요.');
