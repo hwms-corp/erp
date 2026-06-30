@@ -482,60 +482,60 @@ export function DashboardView() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900">대시보드</h2>
-          <p className="text-sm text-slate-500 mt-1">납품완료 기준 월별 매출 현황</p>
-        </div>
-
-        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-2 py-1.5 shadow-sm self-start">
-          <button
-            type="button"
-            onClick={() => setYear(y => y - 1)}
-            className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors"
-            aria-label="이전 년도"
-          >
-            <ChevronLeft className="w-5 h-5" />
-          </button>
-          <span className="min-w-[5rem] text-center font-semibold text-slate-900">{year}년</span>
-          <button
-            type="button"
-            onClick={() => setYear(y => y + 1)}
-            className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors"
-            aria-label="다음 년도"
-          >
-            <ChevronRight className="w-5 h-5" />
-          </button>
-        </div>
+      <div>
+        <h2 className="text-2xl font-bold text-slate-900">대시보드</h2>
+        <p className="text-sm text-slate-500 mt-1">납품완료 기준 월별 매출 현황</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {salesTab === 'total' ? (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:col-span-1 space-y-4">
-            <div>
-              <div className="flex items-center gap-2 text-slate-500 text-xs mb-1">
-                <TrendingUp className="w-4 h-4 text-lime-600" />
-                {year}년 매출금액 (납품완료)
-              </div>
-              <p className="text-2xl font-bold text-lime-700">{fmtW(yearSalesTotal)}</p>
-            </div>
-            <div>
-              <div className="flex items-center gap-2 text-slate-500 text-xs mb-1">
-                <ShoppingCart className="w-4 h-4 text-orange-600" />
-                {year}년 구매금액 (입고완료)
-              </div>
-              <p className="text-2xl font-bold text-orange-600">{fmtW(yearPurchaseTotal)}</p>
-            </div>
+        <div className="sm:col-span-1 space-y-3">
+          <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-2 py-1.5 shadow-sm w-fit">
+            <button
+              type="button"
+              onClick={() => setYear(y => y - 1)}
+              className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors"
+              aria-label="이전 년도"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <span className="min-w-[5rem] text-center font-semibold text-slate-900">{year}년</span>
+            <button
+              type="button"
+              onClick={() => setYear(y => y + 1)}
+              className="p-2 rounded-lg hover:bg-slate-100 text-slate-600 transition-colors"
+              aria-label="다음 년도"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
           </div>
-        ) : (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:col-span-1">
-            <div className="flex items-center gap-2 text-slate-500 text-xs mb-2">
-              <TrendingUp className="w-4 h-4 text-indigo-600" />
-              {year}년 합계 매출
+
+          {salesTab === 'total' ? (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
+              <div>
+                <div className="flex items-center gap-2 text-slate-500 text-xs mb-1">
+                  <TrendingUp className="w-4 h-4 text-lime-600" />
+                  매출금액 (납품완료)
+                </div>
+                <p className="text-2xl font-bold text-lime-700">{fmtW(yearSalesTotal)}</p>
+              </div>
+              <div>
+                <div className="flex items-center gap-2 text-slate-500 text-xs mb-1">
+                  <ShoppingCart className="w-4 h-4 text-orange-600" />
+                  구매금액 (입고완료)
+                </div>
+                <p className="text-2xl font-bold text-orange-600">{fmtW(yearPurchaseTotal)}</p>
+              </div>
             </div>
-            <p className="text-2xl font-bold text-indigo-700">{fmtW(yearTotal)}</p>
-          </div>
-        )}
+          ) : (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+              <div className="flex items-center gap-2 text-slate-500 text-xs mb-2">
+                <TrendingUp className="w-4 h-4 text-indigo-600" />
+                {year}년 합계 매출
+              </div>
+              <p className="text-2xl font-bold text-indigo-700">{fmtW(yearTotal)}</p>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm">
