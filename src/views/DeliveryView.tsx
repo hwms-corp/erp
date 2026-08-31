@@ -411,6 +411,14 @@ export function DeliveryView() {
         {paged.map(card => {
           const isPending = card.delivery_status === 'pending';
           const isCompleted = card.delivery_status === 'completed';
+          const footerSupply =
+            isSpecSearch && search
+              ? card.items.reduce((sum, item) => sum + item.qty * item.price, 0)
+              : card.supply_amount;
+          const footerTotal =
+            isSpecSearch && search
+              ? footerSupply + Math.floor(footerSupply * 0.1)
+              : card.total_amount;
           return (
             <div key={card.id} className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="flex items-center justify-between p-4 border-b border-slate-100">
@@ -489,12 +497,9 @@ export function DeliveryView() {
 
               <div className="p-4 border-t border-slate-100 flex justify-between items-center">
                 <span className="text-sm text-slate-500">
-                  합계: <strong className="text-slate-900">
-                    {fmtW(
-                      isSpecSearch && search
-                        ? card.items.reduce((sum, item) => sum + item.qty * item.price, 0)
-                        : card.total_amount,
-                    )}
+                  공급가액(합계):{' '}
+                  <strong className="text-slate-900">
+                    {fmtW(footerSupply)} ({fmtW(footerTotal)})
                   </strong>
                 </span>
                 <div className="flex items-center gap-2">
