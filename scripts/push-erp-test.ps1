@@ -1,13 +1,13 @@
-# erp-test ????ž¥?†Œ(origin, hwms-corp/erp-test)ë¡? ì»¤ë°‹ ?›„ ?‘¸?‹œ?•©?‹ˆ?‹¤.
+# erp-test remote(erp-test, hwms-corp/erp-test)? ?? ? ?????.
 #
-# ?‚¬?š©:
+# ??:
 #   .\scripts\push-erp-test.ps1
-#   .\scripts\push-erp-test.ps1 "feat: ê¸°ëŠ¥ ì¶”ê??"
+#   .\scripts\push-erp-test.ps1 "feat: ?? ??"
 #   .\scripts\push-erp-test.ps1 -PushOnly
 #
 # npm:
 #   npm run git:push:test
-#   npm run git:push:test -- "ì»¤ë°‹ ë©”ì‹œì§?"
+#   npm run git:push:test -- "?? ???"
 
 param(
   [Parameter(Position = 0)]
@@ -20,6 +20,6 @@ $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\_git-push-common.ps1"
 
 Invoke-RepoCommit -Message $Message -PushOnly:$PushOnly
-Invoke-RemotePush -RemoteName 'origin' -RemoteLabel 'erp-test'
+Invoke-RemotePush -RemoteName 'erp-test' -RemoteLabel 'erp-test'
 
-Write-Host 'erp-test ?‘¸?‹œ ?™„ë£?.' -ForegroundColor Green
+Write-Host 'erp-test ?? ??.' -ForegroundColor Green

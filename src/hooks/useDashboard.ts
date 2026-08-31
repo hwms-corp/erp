@@ -5,7 +5,7 @@ import type { Partner } from '@/types';
 export interface DeliveredOrderRow {
   partner_id: number;
   delivery_date: string;
-  total_amount: number;
+  supply_amount: number;
 }
 
 export interface ReceivedPORow {
@@ -44,7 +44,7 @@ export function aggregateMonthlySales(
     const ym = row.delivery_date.trim().slice(0, 7);
     if (!map.has(ym)) continue;
     if (partnerId !== undefined && row.partner_id !== partnerId) continue;
-    map.set(ym, map.get(ym)! + Number(row.total_amount));
+    map.set(ym, map.get(ym)! + Number(row.supply_amount));
   }
 
   return months.map((m, i) => ({
@@ -111,7 +111,7 @@ export function aggregatePartnerMatrix(
       amountMap.set(row.partner_id, new Array(12).fill(0));
     }
     const arr = amountMap.get(row.partner_id)!;
-    arr[idx] += Number(row.total_amount);
+    arr[idx] += Number(row.supply_amount);
   }
 
   return partners.map(p => {
@@ -165,7 +165,7 @@ export function useDashboard() {
   const fetchYearlySales = useCallback(async (year: number) => {
     const { data, error } = await supabase
       .from('v_orders_with_partner')
-      .select('partner_id, delivery_date, total_amount')
+      .select('partner_id, delivery_date, supply_amount')
       .eq('delivery_status', 'completed')
       .not('delivery_date', 'is', null)
       .gte('delivery_date', `${year}-01-01`)
