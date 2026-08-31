@@ -100,6 +100,31 @@ export function usePOs() {
     return { data, error };
   }, []);
 
+  const completeFullReceive = useCallback(async (
+    poId: number,
+    items: { id: number; qty: number; received_qty: number }[],
+    receivedDate: string,
+  ) => {
+    for (const item of items) {
+      if (item.received_qty < item.qty) {
+        const { error } = await supabase
+          .from('po_items')
+          .update({ received_qty: item.qty })
+          .eq('id', item.id);
+        if (error) return { error };
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('pos')
+      .update({ received_date: receivedDate })
+      .eq('id', poId)
+      .select()
+      .single();
+
+    return { data, error };
+  }, []);
+
   const checkOrderHasPO = useCallback(async (orderId: number): Promise<boolean> => {
     const { count } = await supabase
       .from('pos')
@@ -280,6 +305,7 @@ export function usePOs() {
     createPO,
     updatePO,
     updateReceivedQty,
+    completeFullReceive,
     completeRemittance,
     clearRemittance,
     completeExpectedReceipt,

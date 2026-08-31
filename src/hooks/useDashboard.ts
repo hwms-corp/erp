@@ -10,13 +10,8 @@ export interface DeliveredOrderRow {
 
 export interface ReceivedPORow {
   partner_id: number;
-  updated_at: string;
+  received_date: string;
   received_amount: number;
-}
-
-function isoToYm(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
 export interface MonthlySalesPoint {
@@ -63,9 +58,10 @@ export function aggregateMonthlyPurchases(
   const map = new Map(months.map(m => [m, 0]));
 
   for (const row of rows) {
-    if (partnerId !== undefined && row.partner_id !== partnerId) continue;
-    const ym = isoToYm(row.updated_at);
+    if (!row.received_date) continue;
+    const ym = row.received_date.trim().slice(0, 7);
     if (!map.has(ym)) continue;
+    if (partnerId !== undefined && row.partner_id !== partnerId) continue;
     map.set(ym, map.get(ym)! + Number(row.received_amount));
   }
 
@@ -135,8 +131,8 @@ export function aggregatePartnerPurchaseMatrix(
   const amountMap = new Map<number, number[]>();
 
   for (const row of rows) {
-    if (!row.updated_at) continue;
-    const ym = isoToYm(row.updated_at);
+    if (!row.received_date) continue;
+    const ym = row.received_date.trim().slice(0, 7);
     const idx = months.indexOf(ym);
     if (idx < 0) continue;
 
@@ -177,10 +173,11 @@ export function useDashboard() {
   const fetchYearlyPurchases = useCallback(async (year: number) => {
     const { data, error } = await supabase
       .from('v_pos_with_detail')
-      .select('partner_id, updated_at, received_amount')
+      .select('partner_id, received_date, received_amount')
       .eq('status', 'received')
-      .gte('updated_at', `${year}-01-01T00:00:00`)
-      .lte('updated_at', `${year}-12-31T23:59:59`);
+      .not('received_date', 'is', null)
+      .gte('received_date', `${year}-01-01`)
+      .lte('received_date', `${year}-12-31`);
 
     return { data: data as ReceivedPORow[] | null, error };
   }, []);

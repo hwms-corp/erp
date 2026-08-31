@@ -36,7 +36,7 @@ function isoToLocalYmd(iso: string): string {
 }
 
 export function ReceivingView() {
-  const { fetchPOs, fetchPOItems, updateReceivedQty, completeRemittance, clearRemittance, completeExpectedReceipt, clearExpectedReceipt } = usePOs();
+  const { fetchPOs, fetchPOItems, updateReceivedQty, completeFullReceive, completeRemittance, clearRemittance, completeExpectedReceipt, clearExpectedReceipt } = usePOs();
   const { revertDelivery } = useDelivery();
   const [searchParams, setSearchParams] = useSearchParams();
   const [cards, setCards] = useState<POCardData[]>([]);
@@ -63,6 +63,10 @@ export function ReceivingView() {
   const { tab, q: search, col: searchCol, from: dateFrom, to: dateTo, page } = listQ;
   const [partialModal, setPartialModal] = useState<{ poId: number; item: POItem } | null>(null);
   const [partialQty, setPartialQty] = useState(0);
+  const [fullReceiveModal, setFullReceiveModal] = useState<POCardData | null>(null);
+  const [fullReceiveDate, setFullReceiveDate] = useState(today);
+  const [fullReceiveSubmitting, setFullReceiveSubmitting] = useState(false);
+  const fullReceiveDateInputRef = useRef<HTMLInputElement>(null);
   const [remittanceModal, setRemittanceModal] = useState<POCardData | null>(null);
   const [remittanceDate, setRemittanceDate] = useState(today);
   const [remittanceSubmitting, setRemittanceSubmitting] = useState(false);
@@ -140,20 +144,33 @@ export function ReceivingView() {
   const hasRemainingReceive = (po: POCardData) =>
     po.items.some(it => it.received_qty < it.qty);
 
-  const handleFullReceive = async (po: POCardData) => {
+  const openFullReceiveModal = (po: POCardData) => {
     if (!hasRemainingReceive(po)) return;
-    if (!confirm(`${po.doc_no} 전량입고 처리하시겠습니까?`)) return;
-    for (const item of po.items) {
-      if (item.received_qty < item.qty) {
-        const { error } = await updateReceivedQty(item.id, item.qty);
-        if (error) {
-          alert('입고 처리 실패: ' + (error.message || ''));
-          await loadAll();
-          return;
-        }
-      }
+    setFullReceiveDate(today());
+    setFullReceiveModal(po);
+  };
+
+  const closeFullReceiveModal = () => {
+    if (fullReceiveSubmitting) return;
+    setFullReceiveModal(null);
+  };
+
+  const confirmFullReceive = async () => {
+    if (!fullReceiveModal || !fullReceiveDate) return;
+    setFullReceiveSubmitting(true);
+    const { error } = await completeFullReceive(
+      fullReceiveModal.id,
+      fullReceiveModal.items,
+      fullReceiveDate,
+    );
+    setFullReceiveSubmitting(false);
+    if (error) {
+      alert('입고 처리 실패: ' + (error.message || ''));
+      await loadAll();
+    } else {
+      setFullReceiveModal(null);
+      await loadAll();
     }
-    await loadAll();
   };
 
   const handlePartialReceive = async () => {
@@ -380,7 +397,7 @@ export function ReceivingView() {
                     <span>송금완료: {formatYmdSlash(po.remittance_date!)}</span>
                   )}
                   {hasReceivedItems(po) && (
-                    <span>입고 처리: {isoToLocalYmd(po.updated_at)}</span>
+                    <span>입고 처리: {po.received_date ? formatYmdSlash(po.received_date) : isoToLocalYmd(po.updated_at)}</span>
                   )}
                   {isExpectedReceiptScheduled(po) && (
                     <span>입고예정일: {formatYmdSlash(po.expected_receipt_date!)}</span>
@@ -499,7 +516,7 @@ export function ReceivingView() {
                   {!isFullyReceived && showFullReceive && (
                     <button
                       type="button"
-                      onClick={() => handleFullReceive(po)}
+                      onClick={() => openFullReceiveModal(po)}
                       className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700"
                     >
                       <CheckCircle2 className="w-4 h-4" /> 전량입고
@@ -524,6 +541,57 @@ export function ReceivingView() {
           pageSize={pageSize}
         />
       </div>
+
+      {fullReceiveModal && (
+        <Modal title="입고완료일자 선택" onClose={closeFullReceiveModal}>
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600">
+              <span className="font-medium text-slate-900">{fullReceiveModal.doc_no}</span>
+              <span className="mx-1">·</span>
+              {fullReceiveModal.partner_name}
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">입고완료일자</label>
+              <button
+                type="button"
+                disabled={fullReceiveSubmitting}
+                onClick={() => fullReceiveDateInputRef.current?.showPicker()}
+                className={`${inp} w-full text-left tabular-nums text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                {fullReceiveDate ? formatYmdSlash(fullReceiveDate) : '—'}
+              </button>
+              <input
+                ref={fullReceiveDateInputRef}
+                type="date"
+                className="sr-only"
+                value={fullReceiveDate}
+                onChange={e => setFullReceiveDate(e.target.value)}
+                disabled={fullReceiveSubmitting}
+                tabIndex={-1}
+                aria-hidden
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={closeFullReceiveModal}
+                disabled={fullReceiveSubmitting}
+                className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 disabled:opacity-50"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={confirmFullReceive}
+                disabled={fullReceiveSubmitting || !fullReceiveDate}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {fullReceiveSubmitting ? '처리 중…' : '입고완료'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {expectedReceiptModal && (
         <Modal title="입고예정일자 선택" onClose={closeExpectedReceiptModal}>

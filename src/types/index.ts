@@ -97,6 +97,7 @@ export interface PO {
   remittance_date: string | null;
   expected_receipt_status: ExpectedReceiptStatus | null;
   expected_receipt_date: string | null;
+  received_date: string | null;
   created_by: number;
   created_at: string;
   updated_at: string;
